@@ -18,12 +18,23 @@ public class PunctuationTokenizer implements Tokenizer {
 
     public static Set<String> punctuations = new HashSet<>();
     private static String punctuationsPattern = "[,.;?! ]";
+    private static String spacesPattern = "[\n\r\t ]";
 
     static {
         punctuations.addAll(Arrays.asList(",", ".", ";", "?", "!"));
     }
 
     public PunctuationTokenizer() {}
+
+    private boolean isTokenValid(String rawToken) {
+        if (rawToken.equals("")) {
+            return false;
+        }
+        if (rawToken.matches(PunctuationTokenizer.spacesPattern)) {
+            return false;
+        }
+        return !StopWords.stopWords.contains(rawToken);
+    }
 
     public List<String> tokenize(String text) {
         List<String> tokenList = new ArrayList<>();
@@ -35,7 +46,7 @@ public class PunctuationTokenizer implements Tokenizer {
         String[] rawTokens = text.split(PunctuationTokenizer.punctuationsPattern);
         // Filter stop words
         for (String rawToken : rawTokens) {
-            if (!StopWords.stopWords.contains(rawToken)) {
+            if (isTokenValid(rawToken)) {
                 tokenList.add(rawToken);
             }
         }
