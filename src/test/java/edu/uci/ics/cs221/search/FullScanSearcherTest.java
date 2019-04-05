@@ -15,7 +15,7 @@ import static org.junit.Assert.assertEquals;
 
 public class FullScanSearcherTest {
 
-    @Test
+//    @Test
     public void testFullScanSearch() {
         DocumentStore documentStore = createOrOpen("./docs.db");
 

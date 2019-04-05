@@ -14,11 +14,11 @@ public class MapdbDocStoreTest {
     String file = "MapdbDocStoreTest.db";
     DocumentStore documentStore;
 
-    @Before
+//    @Before
     public void setup() throws Exception {
     }
 
-    @After
+//    @After
     public void cleanup() throws Exception {
         if (documentStore != null) {
             documentStore.close();
@@ -27,7 +27,7 @@ public class MapdbDocStoreTest {
     }
 
 
-    @Test
+//    @Test
     public void testAddDocument() throws Exception {
         documentStore = MapdbDocStore.createOrOpen(file);
         documentStore.addDocument(1, new Document("test1"));
@@ -39,7 +39,7 @@ public class MapdbDocStoreTest {
     }
 
 
-    @Test
+//    @Test
     public void testGetDocument() throws Exception {
         documentStore = MapdbDocStore.createOrOpen(file);
         documentStore.addDocument(1, new Document("test1"));
