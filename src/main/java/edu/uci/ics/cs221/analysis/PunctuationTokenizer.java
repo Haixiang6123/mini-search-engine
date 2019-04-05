@@ -1,9 +1,6 @@
 package edu.uci.ics.cs221.analysis;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Project 1, task 1: Implement a simple tokenizer based on punctuations and white spaces.
@@ -20,6 +17,8 @@ import java.util.Set;
 public class PunctuationTokenizer implements Tokenizer {
 
     public static Set<String> punctuations = new HashSet<>();
+    public static String punctuationsPattern = "[,.;?! ]";
+
     static {
         punctuations.addAll(Arrays.asList(",", ".", ";", "?", "!"));
     }
@@ -27,8 +26,18 @@ public class PunctuationTokenizer implements Tokenizer {
     public PunctuationTokenizer() {}
 
     public List<String> tokenize(String text) {
+        List<String> tokenList = new ArrayList<>();
+        // To lowercase
+        text = text.toLowerCase();
+        // Remove punctuations
+        String[] rawTokens = text.split(PunctuationTokenizer.punctuationsPattern);
+        // Filter stop words
+        for (String rawToken : rawTokens) {
+            if (!StopWords.stopWords.contains(rawToken)) {
+                tokenList.add(rawToken);
+            }
+        }
 
-        throw new UnsupportedOperationException("Punctuation Tokenizer Unimplemented");
+        return tokenList;
     }
-
 }
