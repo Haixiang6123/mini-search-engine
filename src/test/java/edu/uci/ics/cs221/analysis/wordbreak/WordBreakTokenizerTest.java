@@ -69,4 +69,17 @@ public class WordBreakTokenizerTest {
 
         assertEquals(expected, tokenizer.tokenize(text));
     }
+
+    @Test
+    public void testEmptyString() {
+        System.out.println("It: can deal with empty string");
+
+        String emptyText = "";
+        String nullText = null;
+        List<String> expected = new ArrayList<>();
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(emptyText));
+        assertEquals(expected, tokenizer.tokenize(nullText));
+    }
 }

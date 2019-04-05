@@ -70,6 +70,10 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
+        // Deal with empty string
+        if (text == null || text.equals("")) {
+            return new ArrayList<>();
+        }
         // Pre-process text
         text = text.trim().toLowerCase();
 
