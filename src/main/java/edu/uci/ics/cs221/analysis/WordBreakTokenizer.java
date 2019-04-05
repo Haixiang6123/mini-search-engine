@@ -35,7 +35,7 @@ import java.util.*;
  *
  */
 public class WordBreakTokenizer implements Tokenizer {
-    private Map<String, Long> dictionary = null;
+    private Map<String, Long> dict = null;
     private Set<String> dictTokens = null;
 
     class Result {
@@ -44,7 +44,7 @@ public class WordBreakTokenizer implements Tokenizer {
 
         @Override
         public String toString() {
-            return "" + this.isSplittable + " " + Utils.stringifyList(this.tokens);
+            return "" + isSplittable + " " + Utils.stringifyList(tokens);
         }
     }
 
@@ -54,18 +54,25 @@ public class WordBreakTokenizer implements Tokenizer {
             URL dictResource = WordBreakTokenizer.class.getClassLoader().getResource("cs221_frequency_dictionary_en.txt");
             List<String> lines = Files.readAllLines(Paths.get(dictResource.toURI()));
             // Get dictionary
-            this.dictionary = new HashMap<>();
-            for (String line : lines) {
-                String[] item = line.trim().split(" ");
-                this.dictionary.put(item[0], Long.valueOf(item[1]));
-            }
-            this.dictTokens = this.dictionary.keySet();
+            initDict(lines);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    private void initDict(List<String> lines) {
+        dict = new HashMap<>();
+        for (String line : lines) {
+            String[] item = line.trim().split(" ");
+            dict.put(item[0], Long.valueOf(item[1]));
+        }
+        dictTokens = dict.keySet();
+    }
+
     public List<String> tokenize(String text) {
+        // Pre-process text
+        text = text.trim().toLowerCase();
+
         HashMap<String, Result> mapper = new HashMap<>();
         int n = text.length();
 
@@ -78,17 +85,17 @@ public class WordBreakTokenizer implements Tokenizer {
                 int end = start + window - 1;
                 String subText = text.substring(start, end + 1);
 
-                if (this.dictTokens.contains(subText)) {
+                if (dictTokens.contains(subText)) {
                     result.isSplittable = true;
                     result.tokens.add(subText);
                 }
                 else {
                     for (int middle = start; middle < end; middle++) {
-                        if (this.isSplittable(mapper, start, middle, end)) {
-                            Result firstResult = mapper.get("" + start + middle);
-                            Result secondResult = mapper.get("" + (middle + 1) + end);
-                            result.tokens.addAll(firstResult.tokens);
-                            result.tokens.addAll(secondResult.tokens);
+                        if (isSplittable(mapper, start, middle, end)) {
+                            Result left = mapper.get(genKey(start, middle));
+                            Result right = mapper.get(genKey(middle + 1, end));
+                            result.tokens.addAll(left.tokens);
+                            result.tokens.addAll(right.tokens);
                             result.isSplittable = true;
                         }
                     }
@@ -100,11 +107,13 @@ public class WordBreakTokenizer implements Tokenizer {
         return mapper.get(genKey(0, n - 1)).tokens;
     }
 
+    // Check if it can be split by given start, end index
     private boolean isSplittable(Map<String, Result> mapper, int start, int middle, int end) {
         return mapper.get(genKey(start, middle)).isSplittable
                 && mapper.get(genKey(middle + 1, end)).isSplittable;
     }
 
+    // Generate key from number
     private String genKey(int ...numbers) {
         StringBuilder result = new StringBuilder();
         for (Integer number : numbers) {
