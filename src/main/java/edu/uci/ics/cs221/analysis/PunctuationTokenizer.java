@@ -17,7 +17,7 @@ import java.util.*;
 public class PunctuationTokenizer implements Tokenizer {
 
     public static Set<String> punctuations = new HashSet<>();
-    public static String punctuationsPattern = "[,.;?! ]";
+    private static String punctuationsPattern = "[,.;?! ]";
 
     static {
         punctuations.addAll(Arrays.asList(",", ".", ";", "?", "!"));
@@ -27,6 +27,8 @@ public class PunctuationTokenizer implements Tokenizer {
 
     public List<String> tokenize(String text) {
         List<String> tokenList = new ArrayList<>();
+        // Trim the string
+        text = text.trim();
         // To lowercase
         text = text.toLowerCase();
         // Remove punctuations

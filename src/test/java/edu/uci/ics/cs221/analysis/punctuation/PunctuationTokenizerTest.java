@@ -22,4 +22,15 @@ public class PunctuationTokenizerTest {
 
         assertEquals(expected, tokenizer.tokenize(text));
     }
+
+    @Test
+    public void testTrim() {
+        System.out.println("It: should deal with string with space at the front and end");
+
+        String text = "     I am Happy Today!      ";
+        List<String> expected = Arrays.asList("happy", "today");
+        PunctuationTokenizer tokenizer = new PunctuationTokenizer();
+        
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
 }
