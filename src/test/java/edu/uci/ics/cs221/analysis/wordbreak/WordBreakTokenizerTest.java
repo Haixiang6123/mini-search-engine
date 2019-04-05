@@ -11,8 +11,14 @@ import static org.junit.Assert.assertEquals;
 
 public class WordBreakTokenizerTest {
 
+    public WordBreakTokenizerTest() {
+        System.out.println("Describe: WordBreakTokenizer");
+    }
+
     @Test
     public void testCanBreak() {
+        System.out.println("It: can break normal string");
+
         String text = "catdog";
         List<String> expected = Arrays.asList("cat", "dog");
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
@@ -22,6 +28,8 @@ public class WordBreakTokenizerTest {
 
     @Test
     public void testCanNotBreak() {
+        System.out.println("It: can not break string which is not in dictionary");
+
         String text = "xzy";
         List<String> expected = new ArrayList<>();
 
