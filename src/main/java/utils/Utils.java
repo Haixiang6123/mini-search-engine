@@ -19,4 +19,15 @@ public class Utils {
     public static String stringifyList(List list) {
         return Arrays.asList(list).toString();
     }
+    public static String stringifyMatrix(Object[][] matrix) {
+        StringBuilder sb = new StringBuilder();
+        for (Object[] row : matrix) {
+            for (Object cell : row) {
+                sb.append(cell).append("\t");
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
+    }
 }

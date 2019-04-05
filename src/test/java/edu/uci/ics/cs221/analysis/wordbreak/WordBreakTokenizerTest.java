@@ -27,6 +27,17 @@ public class WordBreakTokenizerTest {
     }
 
     @Test
+    public void testDuplication() {
+        System.out.println("It: can deal with duplicate sub string");
+
+        String text = "catdogcatdog";
+        List<String> expected = Arrays.asList("cat", "dog", "cat", "dog");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
     public void testCanNotBreak() {
         System.out.println("It: can not break string which is not in dictionary");
 

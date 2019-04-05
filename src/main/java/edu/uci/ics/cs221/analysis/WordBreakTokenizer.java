@@ -76,9 +76,9 @@ public class WordBreakTokenizer implements Tokenizer {
         }
         // Pre-process text
         text = text.trim().toLowerCase();
-
-        HashMap<String, Result> mapper = new HashMap<>();
         int n = text.length();
+
+        Result[][] matrix = new Result[n][n];
 
         // n: text length
         // Window size: 1 to n
@@ -95,34 +95,26 @@ public class WordBreakTokenizer implements Tokenizer {
                 }
                 else {
                     for (int middle = start; middle < end; middle++) {
-                        if (isBreakable(mapper, start, middle, end)) {
-                            Result left = mapper.get(genKey(start, middle));
-                            Result right = mapper.get(genKey(middle + 1, end));
+                        if (isBreakable(matrix, start, middle, end)) {
+                            Result left = matrix[start][middle];
+                            Result right = matrix[middle + 1][end];
                             result.tokens.addAll(left.tokens);
                             result.tokens.addAll(right.tokens);
                             result.breakable = true;
+                            // todo: need to consider the probability
+                            break;
                         }
                     }
                 }
-                mapper.put(genKey(start, end), result);
+                matrix[start][end] = result;
             }
         }
-
-        return mapper.get(genKey(0, n - 1)).tokens;
+        return matrix[0][n - 1].tokens;
     }
 
     // Check if it can be broken it by given start, end index
-    private boolean isBreakable(Map<String, Result> mapper, int start, int middle, int end) {
-        return mapper.get(genKey(start, middle)).breakable
-                && mapper.get(genKey(middle + 1, end)).breakable;
-    }
-
-    // Generate key from number
-    private String genKey(int ...numbers) {
-        StringBuilder result = new StringBuilder();
-        for (Integer number : numbers) {
-            result.append(number);
-        }
-        return result.toString();
+    private boolean isBreakable(Result[][] store, int start, int middle, int end) {
+        return store[start][middle].breakable
+                && store[middle + 1][end].breakable;
     }
 }
