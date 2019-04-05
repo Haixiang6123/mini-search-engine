@@ -36,4 +36,15 @@ public class WordBreakTokenizerTest {
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
         assertEquals(expected, tokenizer.tokenize(text));
     }
+
+    @Test
+    public void testInvalidCharacter() {
+        System.out.println("It: can deal with string with invalid character");
+
+        String text = "!@#$$";
+        List<String> expected = new ArrayList<>();
+
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
 }
