@@ -47,4 +47,26 @@ public class WordBreakTokenizerTest {
         WordBreakTokenizer tokenizer = new WordBreakTokenizer();
         assertEquals(expected, tokenizer.tokenize(text));
     }
+
+    @Test
+    public void testUppercaseString() {
+        System.out.println("It: has lowercase result");
+
+        String text = "CATDOG";
+        List<String> expected = Arrays.asList("cat", "dog");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
+    public void testNotTrimString() {
+        System.out.println("It: can deal with not-trim string");
+
+        String text = "       catdog     ";
+        List<String> expected = Arrays.asList("cat", "dog");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
 }
