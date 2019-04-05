@@ -37,6 +37,9 @@ public class PunctuationTokenizer implements Tokenizer {
     }
 
     public List<String> tokenize(String text) {
+        if (text == null || text.equals("")) {
+            return new ArrayList<>();
+        }
         List<String> tokenList = new ArrayList<>();
         // Trim the string
         text = text.trim();
