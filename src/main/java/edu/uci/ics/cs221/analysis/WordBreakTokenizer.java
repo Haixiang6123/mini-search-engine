@@ -39,12 +39,12 @@ public class WordBreakTokenizer implements Tokenizer {
     private Set<String> dictTokens = null;
 
     class Result {
-        public boolean isSplittable = false;
+        public boolean breakable = false;
         public List<String> tokens = new ArrayList<>();
 
         @Override
         public String toString() {
-            return "" + isSplittable + " " + Utils.stringifyList(tokens);
+            return "" + breakable + " " + Utils.stringifyList(tokens);
         }
     }
 
@@ -86,17 +86,17 @@ public class WordBreakTokenizer implements Tokenizer {
                 String subText = text.substring(start, end + 1);
 
                 if (dictTokens.contains(subText)) {
-                    result.isSplittable = true;
+                    result.breakable = true;
                     result.tokens.add(subText);
                 }
                 else {
                     for (int middle = start; middle < end; middle++) {
-                        if (isSplittable(mapper, start, middle, end)) {
+                        if (isBreakable(mapper, start, middle, end)) {
                             Result left = mapper.get(genKey(start, middle));
                             Result right = mapper.get(genKey(middle + 1, end));
                             result.tokens.addAll(left.tokens);
                             result.tokens.addAll(right.tokens);
-                            result.isSplittable = true;
+                            result.breakable = true;
                         }
                     }
                 }
@@ -107,10 +107,10 @@ public class WordBreakTokenizer implements Tokenizer {
         return mapper.get(genKey(0, n - 1)).tokens;
     }
 
-    // Check if it can be split by given start, end index
-    private boolean isSplittable(Map<String, Result> mapper, int start, int middle, int end) {
-        return mapper.get(genKey(start, middle)).isSplittable
-                && mapper.get(genKey(middle + 1, end)).isSplittable;
+    // Check if it can be broken it by given start, end index
+    private boolean isBreakable(Map<String, Result> mapper, int start, int middle, int end) {
+        return mapper.get(genKey(start, middle)).breakable
+                && mapper.get(genKey(middle + 1, end)).breakable;
     }
 
     // Generate key from number
