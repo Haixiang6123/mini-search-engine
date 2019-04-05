@@ -14,7 +14,7 @@ public class PunctuationTokenizerTest {
         System.out.println("Describe: PunctuationTokenizer");
     }
     @Test
-    public void testFunctionality() {
+    public void testCanTokenize() {
         System.out.println("It: can tokenize normal string with white spaces");
 
         String text = "I am Happy Today!";
