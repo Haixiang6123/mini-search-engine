@@ -27,6 +27,17 @@ public class WordBreakTokenizerTest {
     }
 
     @Test
+    public void testChinese() {
+        System.out.println("It: can break string with Chinese");
+
+        String text = "你好我是一个人";
+        List<String> expected = Arrays.asList("你好", "我", "是", "一个", "人");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
     public void testDuplication() {
         System.out.println("It: can deal with duplicate sub string");
 

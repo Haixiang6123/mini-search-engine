@@ -64,6 +64,10 @@ public class WordBreakTokenizer implements Tokenizer {
         dict = new HashMap<>();
         for (String line : lines) {
             String[] item = line.trim().split(" ");
+            // Prevent from empty string
+            if (item.length != 2) {
+                continue;
+            }
             dict.put(item[0], Long.valueOf(item[1]));
         }
         dictTokens = dict.keySet();
@@ -88,7 +92,6 @@ public class WordBreakTokenizer implements Tokenizer {
                 Result result = new Result();
                 int end = start + window - 1;
                 String subText = text.substring(start, end + 1);
-
                 if (dictTokens.contains(subText)) {
                     result.breakable = true;
                     result.tokens.add(subText);
