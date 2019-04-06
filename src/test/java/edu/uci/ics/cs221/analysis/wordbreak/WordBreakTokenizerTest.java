@@ -38,6 +38,17 @@ public class WordBreakTokenizerTest {
     }
 
     @Test
+    public void testJapanese() {
+        System.out.println("It: can break string with Japanese");
+
+        String text = "さようなら友達";
+        List<String> expected = Arrays.asList("さようなら", "友達");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
     public void testDuplication() {
         System.out.println("It: can deal with duplicate sub string");
 
