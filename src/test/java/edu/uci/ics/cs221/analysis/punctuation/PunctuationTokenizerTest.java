@@ -2,7 +2,6 @@ package edu.uci.ics.cs221.analysis.punctuation;
 
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import org.junit.Test;
-import org.omg.CORBA.PUBLIC_MEMBER;
 
 import java.util.ArrayList;
 import java.util.Arrays;
