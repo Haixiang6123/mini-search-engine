@@ -35,7 +35,7 @@ import java.util.*;
  *
  */
 public class WordBreakTokenizer implements Tokenizer {
-    private Map<String, Long> dict = null;
+    private Map<String, Double> dict = null;
     private Set<String> dictTokens = null;
 
     class Result {
@@ -66,14 +66,13 @@ public class WordBreakTokenizer implements Tokenizer {
         for (String line : lines) {
             // Init item
             String[] item = line.trim().split(" ");
-            dict.put(item[0], Double.valueOf(item[1]));
-            // Compute total
-            total += Double.valueOf(item[1]);
-            // Prevent from empty string
             if (item.length != 2) {
                 continue;
             }
-            dict.put(item[0], Long.valueOf(item[1]));
+            dict.put(item[0], Double.valueOf(item[1]));
+            // Compute total
+            total += Double.valueOf(item[1]);
+            dict.put(item[0], Double.valueOf(item[1]));
         }
         dictTokens = dict.keySet();
 
