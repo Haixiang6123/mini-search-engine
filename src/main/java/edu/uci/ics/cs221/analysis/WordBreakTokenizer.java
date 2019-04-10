@@ -34,7 +34,7 @@ import java.util.*;
  * - If there's no possible way to break the string, throw an exception.
  */
 public class WordBreakTokenizer implements Tokenizer {
-    private Map<String, Double> dict = null;
+    private Map<String, Double> dict = new HashMap<>();
     private Set<String> dictTokens = null;
 
     class Result {
@@ -62,7 +62,6 @@ public class WordBreakTokenizer implements Tokenizer {
 
     private void initDict(List<String> lines) {
         double total = 0;
-        dict = new HashMap<>();
         for (String line : lines) {
             // Init item
             String[] item = line.trim().split(" ");
@@ -100,8 +99,14 @@ public class WordBreakTokenizer implements Tokenizer {
         // Break pre-processed text
         breakWord(matrix, text);
 
-        // Return final result: 0 -> text length - 1
-        return matrix[0][text.length() - 1].tokens;
+        // Final result: 0 -> text length - 1
+        Result result = matrix[0][text.length() - 1];
+        if (result.breakable) {
+            // todo: throw error
+            System.out.println("Throw Error");
+        }
+        // Filter stop words
+        return filterStopWords(result.tokens);
     }
 
     private void breakWord(Result[][] matrix, String text) {
@@ -144,6 +149,16 @@ public class WordBreakTokenizer implements Tokenizer {
                 }
             }
         }
+    }
+
+    private List<String> filterStopWords(List<String> tokens) {
+        for (String token : tokens) {
+            if (StopWords.stopWords.contains(token)) {
+                tokens.remove(token);
+            }
+        }
+
+        return tokens;
     }
 
     private void updateResult(Result result, Result left, Result right, double curProb) {
