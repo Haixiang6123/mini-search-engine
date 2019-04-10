@@ -101,12 +101,13 @@ public class WordBreakTokenizer implements Tokenizer {
 
         // Final result: 0 -> text length - 1
         Result result = matrix[0][text.length() - 1];
-        if (result.breakable) {
+        if (!result.breakable) {
             // todo: throw error
             System.out.println("Throw Error");
         }
         // Filter stop words
-        return filterStopWords(result.tokens);
+        result.tokens = filterStopWords(result.tokens);
+        return result.tokens;
     }
 
     private void breakWord(Result[][] matrix, String text) {
@@ -152,13 +153,14 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     private List<String> filterStopWords(List<String> tokens) {
+        List<String> filteredList = new ArrayList<>();
         for (String token : tokens) {
-            if (StopWords.stopWords.contains(token)) {
-                tokens.remove(token);
+            if (!StopWords.stopWords.contains(token)) {
+                filteredList.add(token);
             }
         }
 
-        return tokens;
+        return filteredList;
     }
 
     private void updateResult(Result result, Result left, Result right, double curProb) {
