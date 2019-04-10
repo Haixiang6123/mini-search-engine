@@ -60,6 +60,7 @@ public class WordBreakTokenizer implements Tokenizer {
         }
     }
 
+    // Init a dictionary for all tokens
     private void initDict(List<String> lines) {
         double total = 0;
         for (String line : lines) {
@@ -79,6 +80,7 @@ public class WordBreakTokenizer implements Tokenizer {
         getProbabilities(total);
     }
 
+    // Init probabilities from given resource file
     private void getProbabilities(double total) {
         for (String token : dict.keySet()) {
             double frequency = dict.get(token);
@@ -86,6 +88,7 @@ public class WordBreakTokenizer implements Tokenizer {
         }
     }
 
+    // Main method for tokenize words
     public List<String> tokenize(String text) {
         // Deal with empty string
         if (text == null || text.equals("")) {
@@ -110,6 +113,7 @@ public class WordBreakTokenizer implements Tokenizer {
         return result.tokens;
     }
 
+    // Start to break word
     private void breakWord(Result[][] matrix, String text) {
         int n = text.length();
         for (int window = 1; window <= n; window++) {
@@ -130,6 +134,7 @@ public class WordBreakTokenizer implements Tokenizer {
         }
     }
 
+    // Check if sub text exist in dict
     private void checkDict(Result result, String subText, Map<String, Double> dict) {
         if (dictTokens.contains(subText)) {
             result.breakable = true;
@@ -139,6 +144,7 @@ public class WordBreakTokenizer implements Tokenizer {
         }
     }
 
+    // Compare current sub text probability with previous sub texts
     private void comparePrevSubText(Result result, int start, int end, Result[][] matrix) {
         for (int middle = start; middle < end; middle++) {
             if (isBreakable(matrix, start, middle, end)) {
@@ -152,6 +158,7 @@ public class WordBreakTokenizer implements Tokenizer {
         }
     }
 
+    // Remove STOP WORDS from result list
     private List<String> filterStopWords(List<String> tokens) {
         List<String> filteredList = new ArrayList<>();
         for (String token : tokens) {
