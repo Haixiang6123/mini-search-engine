@@ -115,4 +115,15 @@ public class WordBreakTokenizerTest {
         assertEquals(expected, tokenizer.tokenize(emptyText));
         assertEquals(expected, tokenizer.tokenize(nullText));
     }
+
+    @Test
+    public void testContainStopWord() {
+        System.out.println("It: should not contain STOP WORDS result");
+
+        String text = "mecatdog";
+        List<String> expected = Arrays.asList("cat", "dog");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
 }
