@@ -126,4 +126,15 @@ public class WordBreakTokenizerTest {
 
         assertEquals(expected, tokenizer.tokenize(text));
     }
+
+    @Test
+    public void testProbCompare() {
+        System.out.println("It: should have higher probability tokens");
+
+        String text = "something";
+        List<String> expected = Arrays.asList("something");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
 }
