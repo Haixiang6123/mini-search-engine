@@ -1,10 +1,26 @@
-## CS221 Project - Peterman Search Engine
+# CS221 Project - Peterman Search Engine
 
-This repository contains the starter skeleton code for the CS221 project. 
+[![Build Status](https://travis-ci.com/UCI-Chenli-teaching/cs221-spring19-team-4.svg?token=RHoX67zjazPBbqmQGxcT&branch=master)](https://travis-ci.com/UCI-Chenli-teaching/cs221-spring19-team-4)
 
-### To run this example: 
-1. clone this repository using `git clone https://github.com/UCI-Chenli-teaching/spring19-cs221-project.git`
-1. run `mvn clean install -DskipTests` in command line
-1. open IntelliJ -> Open -> Choose the directory. Wait for IntelliJ to finish importing and building.
-1. You can run the `HelloWorld` program under `src/main/java/edu.uci.ics.cs221` package to test if everything works.
+This repo is for building a naive search engine based on Java. 
+Junit is used for unit testing.
+Maven is used as the main package manager.
 
+## Get started
+
+```bash
+$ git clone git@github.com:UCI-Chenli-teaching/cs221-spring19-team-4.git
+
+$ mvn clean install -DskipTests
+```
+
+## Components
+
+* [x] PunctuationTokenizer
+* [x] WordBreakTokenizer
+
+## Run tests
+
+```bash
+$ mvn test
+```

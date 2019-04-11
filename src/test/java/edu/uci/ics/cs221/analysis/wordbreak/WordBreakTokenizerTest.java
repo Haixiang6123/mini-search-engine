@@ -27,6 +27,28 @@ public class WordBreakTokenizerTest {
     }
 
     @Test
+    public void testChinese() {
+        System.out.println("It: can break string with Chinese");
+
+        String text = "你好我是一个人";
+        List<String> expected = Arrays.asList("你好", "我", "是", "一个", "人");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
+    public void testJapanese() {
+        System.out.println("It: can break string with Japanese");
+
+        String text = "さようなら友達";
+        List<String> expected = Arrays.asList("さようなら", "友達");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
     public void testDuplication() {
         System.out.println("It: can deal with duplicate sub string");
 
@@ -92,5 +114,27 @@ public class WordBreakTokenizerTest {
 
         assertEquals(expected, tokenizer.tokenize(emptyText));
         assertEquals(expected, tokenizer.tokenize(nullText));
+    }
+
+    @Test
+    public void testContainStopWord() {
+        System.out.println("It: should not contain STOP WORDS result");
+
+        String text = "mecatdog";
+        List<String> expected = Arrays.asList("cat", "dog");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
+    }
+
+    @Test
+    public void testProbCompare() {
+        System.out.println("It: should have higher probability tokens");
+
+        String text = "something";
+        List<String> expected = Arrays.asList("something");
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
+
+        assertEquals(expected, tokenizer.tokenize(text));
     }
 }
