@@ -42,6 +42,4 @@ public class JapaneseTokenizerTest {
 
         assertEquals(expected, tokenizer.tokenize(text));
     }
-
-
 }
