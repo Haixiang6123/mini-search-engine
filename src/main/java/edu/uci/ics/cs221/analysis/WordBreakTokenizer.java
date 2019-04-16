@@ -105,8 +105,7 @@ public class WordBreakTokenizer implements Tokenizer {
         // Final result: 0 -> text length - 1
         Result result = matrix[0][text.length() - 1];
         if (!result.breakable) {
-            // todo: throw error
-            System.out.println("Throw Error");
+            throw new RuntimeException("Can't break this word");
         }
         // Filter stop words
         result.tokens = filterStopWords(result.tokens);
