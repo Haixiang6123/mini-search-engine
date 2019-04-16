@@ -1,6 +1,5 @@
 package edu.uci.ics.cs221.analysis.wordbreak;
 
-import edu.uci.ics.cs221.analysis.JapaneseTokenizer;
 import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import org.junit.Test;
 
@@ -397,7 +396,7 @@ public class WordBreakTokenizerTest {
 
         String text = "さようなら友達";
         List<String> expected = Arrays.asList("さようなら", "友達");
-        JapaneseTokenizer tokenizer = new JapaneseTokenizer();
+        WordBreakTokenizer tokenizer = new WordBreakTokenizer();
 
         assertEquals(expected, tokenizer.tokenize(text));
     }
