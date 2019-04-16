@@ -17,7 +17,7 @@ import java.util.*;
 public class PunctuationTokenizer implements Tokenizer {
 
     public static Set<String> punctuations = new HashSet<>();
-    private static String punctuationsPattern = "[,.;?! ]";
+    private static String punctuationsPattern = "[,.;?! ^\\f\\n\\r\\t\\v]";
     private static String spacesPattern = "[\n\r\t ]";
 
     static {

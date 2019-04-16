@@ -34,8 +34,8 @@ import java.util.*;
  * - If there's no possible way to break the string, throw an exception.
  */
 public class WordBreakTokenizer implements Tokenizer {
-    private Map<String, Double> dict = new HashMap<>();
-    private Set<String> dictTokens = null;
+    protected Map<String, Double> dict = new HashMap<>();
+    protected Set<String> dictTokens = null;
 
     class Result {
         public boolean breakable = false;
@@ -61,7 +61,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Init a dictionary for all tokens
-    private void initDict(List<String> lines) {
+    protected void initDict(List<String> lines) {
         double total = 0;
         for (String line : lines) {
             // Init item
@@ -81,7 +81,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Init probabilities from given resource file
-    private void getProbabilities(double total) {
+    protected void getProbabilities(double total) {
         for (String token : dict.keySet()) {
             double frequency = dict.get(token);
             dict.put(token, frequency / total);
@@ -105,8 +105,7 @@ public class WordBreakTokenizer implements Tokenizer {
         // Final result: 0 -> text length - 1
         Result result = matrix[0][text.length() - 1];
         if (!result.breakable) {
-            // todo: throw error
-            System.out.println("Throw Error");
+            throw new RuntimeException("Can't break this word");
         }
         // Filter stop words
         result.tokens = filterStopWords(result.tokens);
@@ -114,7 +113,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Start to break word
-    private void breakWord(Result[][] matrix, String text) {
+    protected void breakWord(Result[][] matrix, String text) {
         int n = text.length();
         for (int window = 1; window <= n; window++) {
             // Start index: 0 -> n - window size
@@ -135,7 +134,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Check if sub text exist in dict
-    private void checkDict(Result result, String subText, Map<String, Double> dict) {
+    protected void checkDict(Result result, String subText, Map<String, Double> dict) {
         if (dictTokens.contains(subText)) {
             result.breakable = true;
             result.tokens.add(subText);
@@ -145,7 +144,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Compare current sub text probability with previous sub texts
-    private void comparePrevSubText(Result result, int start, int end, Result[][] matrix) {
+    protected void comparePrevSubText(Result result, int start, int end, Result[][] matrix) {
         for (int middle = start; middle < end; middle++) {
             if (isBreakable(matrix, start, middle, end)) {
                 Result left = matrix[start][middle];
@@ -159,7 +158,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Remove STOP WORDS from result list
-    private List<String> filterStopWords(List<String> tokens) {
+    protected List<String> filterStopWords(List<String> tokens) {
         List<String> filteredList = new ArrayList<>();
         for (String token : tokens) {
             if (!StopWords.stopWords.contains(token)) {
@@ -170,7 +169,7 @@ public class WordBreakTokenizer implements Tokenizer {
         return filteredList;
     }
 
-    private void updateResult(Result result, Result left, Result right, double curProb) {
+    protected void updateResult(Result result, Result left, Result right, double curProb) {
         result.probability = curProb;
         result.tokens.clear();
         result.tokens.addAll(left.tokens);
@@ -179,7 +178,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     // Check if it can be broken it by given start, end index
-    private boolean isBreakable(Result[][] store, int start, int middle, int end) {
+    protected boolean isBreakable(Result[][] store, int start, int middle, int end) {
         return store[start][middle].breakable
                 && store[middle + 1][end].breakable;
     }
