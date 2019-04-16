@@ -4,7 +4,6 @@ import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -36,6 +35,4 @@ public class FullScanSearcherTest {
         assertEquals(new HashSet<>(searchResult), new HashSet<>(Arrays.asList(0, 2)));
 
     }
-
-
 }

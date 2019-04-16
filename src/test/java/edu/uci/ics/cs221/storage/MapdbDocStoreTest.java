@@ -1,9 +1,5 @@
 package edu.uci.ics.cs221.storage;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
@@ -51,7 +47,5 @@ public class MapdbDocStoreTest {
         assertEquals(documentStore.getDocument(2), new Document("test2"));
         assertNull(documentStore.getDocument(3));
         documentStore.close();
-
     }
-
 }
