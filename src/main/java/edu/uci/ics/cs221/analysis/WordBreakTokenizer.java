@@ -40,7 +40,7 @@ public class WordBreakTokenizer implements Tokenizer {
     class Result {
         public boolean breakable = false;
         public List<String> tokens = new ArrayList<>();
-        public double probability = 0;
+        public double logProb = Double.NEGATIVE_INFINITY;
 
         @Override
         public String toString() {
@@ -139,7 +139,7 @@ public class WordBreakTokenizer implements Tokenizer {
             result.breakable = true;
             result.tokens.add(subText);
             // Init probability for this sub text
-            result.probability = dict.get(subText);
+            result.logProb = Math.log(dict.get(subText));
         }
     }
 
@@ -149,9 +149,9 @@ public class WordBreakTokenizer implements Tokenizer {
             if (isBreakable(matrix, start, middle, end)) {
                 Result left = matrix[start][middle];
                 Result right = matrix[middle + 1][end];
-                double curProb = left.probability * right.probability;
-                if (curProb > result.probability) {
-                    updateResult(result, left, right, curProb);
+                double curLogProb = left.logProb + right.logProb;
+                if (curLogProb > result.logProb) {
+                    updateResult(result, left, right, curLogProb);
                 }
             }
         }
@@ -170,7 +170,7 @@ public class WordBreakTokenizer implements Tokenizer {
     }
 
     protected void updateResult(Result result, Result left, Result right, double curProb) {
-        result.probability = curProb;
+        result.logProb = curProb;
         result.tokens.clear();
         result.tokens.addAll(left.tokens);
         result.tokens.addAll(right.tokens);
