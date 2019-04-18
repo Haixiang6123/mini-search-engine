@@ -4,18 +4,18 @@ import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.analysis.StopWords;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
-public class PunctuationTokenizerTest {
-    public PunctuationTokenizerTest() {
-        System.out.println("Describe: PunctuationTokenizer");
-    }
+/**
+ * Test cases for punctuation tokenizer by team 1.
+ *
+ * @author Zixu Wang
+ */
+public class Team1PunctuationTokenizerTest {
 
-    // Team 1
     /**
      * Test whether the punctuation tokenizer handles white spaces correctly.
      *
