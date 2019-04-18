@@ -16,8 +16,9 @@ $ mvn clean install -DskipTests
 
 ## Components
 
-* [x] PunctuationTokenizer
-* [x] WordBreakTokenizer
+* [x] Punctuation Tokenizer
+* [x] Word Break Tokenizer (Support English, Japanese, Chinese)
+* [x] Steammer (Using Lucene Lib)
 
 ## Run tests
 
