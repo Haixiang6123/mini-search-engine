@@ -33,13 +33,13 @@ public class Team4OrSearchTest {
         // Flush to disk
         manager.flush();
     }
-    /**
-     * Test for normal search or case
-     * This test case is going to search "cat" or "apple"
-     * The result should be doc1, doc2, doc3
+    /** Test 1:
+         * Test for normal search or case
+         * This test case is going to search "cat" or "apple"
+         * The result should be doc1, doc2, doc3
      */
     @Test
-    public void test1() {
+    public void team4OrTest1() {
         // Generate expected list
         List<Document> expected = Arrays.asList(doc1, doc2, doc3);
 
@@ -55,12 +55,12 @@ public class Team4OrSearchTest {
         }
     }
 
-    /**
-     * Test for empty keyword
-     * Result should be an empty list of Documents
+    /** Test 2:
+         * Test for empty keyword
+         * Result should be an empty list of Documents
      */
     @Test
-    public void test2() {
+    public void team4OrTest2() {
         // Generate keywords
         List<String> keywords = Arrays.asList("");
 
@@ -71,12 +71,12 @@ public class Team4OrSearchTest {
         assertFalse(results.hasNext());
     }
 
-    /**
-     * Test for punctuation characters
-     * Results should be an empty list of Documents
+    /** Test 3:
+         * Test for punctuation characters
+         * Results should be an empty list of Documents
      */
     @Test
-    public void test3() {
+    public void team4OrTest3() {
         // Generate keywords
         List<String> keywords = Arrays.asList(",", ":./");
 
