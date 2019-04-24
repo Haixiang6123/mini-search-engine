@@ -95,15 +95,13 @@ public class Team4OrSearchTest {
 
     @After
     public void after() {
-        try {
-            File file = new File(FOLDER);
-            if (file.delete()) {
-                System.out.println(file.getName() + " is deleted!");
-            } else {
-                System.out.println("Can't delete.");
+        File cacheFolder = new File(FOLDER);
+        for (File file : cacheFolder.listFiles()) {
+            try {
+                file.delete();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 }
