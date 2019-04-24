@@ -93,6 +93,9 @@ public class Team4OrSearchTest {
         assertFalse(results.hasNext());
     }
 
+    /**
+     * Clean up the cache files
+     */
     @After
     public void after() {
         File cacheFolder = new File(FOLDER);
