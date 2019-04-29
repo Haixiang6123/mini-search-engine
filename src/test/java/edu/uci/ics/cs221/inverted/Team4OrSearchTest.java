@@ -3,9 +3,11 @@ package edu.uci.ics.cs221.inverted;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
 import edu.uci.ics.cs221.storage.Document;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -19,13 +21,13 @@ public class Team4OrSearchTest {
     private Document doc1 = new Document("cat dog cat dog");
     private Document doc2 = new Document("apple dog");
     private Document doc3 = new Document("cat smile");
+    private String FOLDER = "./index/Team4OrSearchTest";
 
     @Before
     public void before() {
         // Initialize analyzer
         Analyzer analyzer = new NaiveAnalyzer();
         // Initialize InvertedIndexManager
-        String FOLDER = "./index/Team4OrSearchTest";
         manager = InvertedIndexManager.createOrOpen(FOLDER, analyzer);
 //        manager.addDocument(doc1);
 //        manager.addDocument(doc2);
@@ -94,5 +96,21 @@ public class Team4OrSearchTest {
 
         // Assertion
         assertFalse(results.hasNext());
+    }
+
+
+    /**
+     * Clean up the cache files
+     */
+    @After
+    public void after() {
+        File cacheFolder = new File(FOLDER);
+        for (File file : cacheFolder.listFiles()) {
+            try {
+                file.delete();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
