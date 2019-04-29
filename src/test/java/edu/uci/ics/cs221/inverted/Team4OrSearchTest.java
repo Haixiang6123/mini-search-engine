@@ -27,12 +27,18 @@ public class Team4OrSearchTest {
         // Initialize InvertedIndexManager
         String FOLDER = "./index/Team4OrSearchTest";
         InvertedIndexManager manager = InvertedIndexManager.createOrOpen(FOLDER, analyzer);
-        manager.addDocument(doc1);
-        manager.addDocument(doc2);
-        manager.addDocument(doc3);
+//        manager.addDocument(doc1);
+//        manager.addDocument(doc2);
+//        manager.addDocument(doc3);
         // Flush to disk
-        manager.flush();
+//        manager.flush();
     }
+
+    @Test
+    public void test0() {
+        manager.addDocument(doc1);
+    }
+
     /**
      * Test for normal search or case
      * This test case is going to search "cat" or "apple"

@@ -3,14 +3,14 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import utils.Utils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
@@ -35,8 +35,14 @@ public class InvertedIndexManager {
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
 
+    // Native analyzer
+    private Analyzer analyzer = null;
+    // In-memory data structure for storing inverted index
+    private Map<String, List<Integer>> invertedIndex = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
+        this.analyzer = analyzer;
+        this.invertedIndex = new HashMap<>();
     }
 
     /**
@@ -66,7 +72,18 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
-        throw new UnsupportedOperationException();
+        List<String> tokens = this.analyzer.analyze(document.getText());
+        for (String token : tokens) {
+            List<Integer> indexes = invertedIndex.get(token);
+            if (indexes == null) {
+                // Create a new list
+                invertedIndex.put(token, new ArrayList<>(document.hashCode()));
+            }
+            else {
+                // Add to exist list
+                indexes.add(document.hashCode());
+            }
+        }
     }
 
     /**
