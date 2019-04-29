@@ -8,9 +8,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -21,14 +23,15 @@ public class Team4OrSearchTest {
     private Document doc1 = new Document("cat dog cat dog");
     private Document doc2 = new Document("apple dog");
     private Document doc3 = new Document("cat smile");
-    private String FOLDER = "./index/Team4OrSearchTest";
+    private String indexFolderName = "index";
+    private String teamFolderName = "Team4OrSearchTest";
 
     @Before
     public void before() {
         // Initialize analyzer
         Analyzer analyzer = new NaiveAnalyzer();
         // Initialize InvertedIndexManager
-        manager = InvertedIndexManager.createOrOpen(FOLDER, analyzer);
+        manager = InvertedIndexManager.createOrOpen(Paths.get(indexFolderName, teamFolderName).toString(), analyzer);
 //        manager.addDocument(doc1);
 //        manager.addDocument(doc2);
 //        manager.addDocument(doc3);
@@ -104,13 +107,22 @@ public class Team4OrSearchTest {
      */
     @After
     public void after() {
-        File cacheFolder = new File(FOLDER);
-        for (File file : cacheFolder.listFiles()) {
+        File indexFolder = new File(Paths.get(indexFolderName).toString());
+        File teamFolder = new File(Paths.get(indexFolderName, teamFolderName).toString());
+        // Delete files
+        for (File file : Objects.requireNonNull(teamFolder.listFiles())) {
             try {
                 file.delete();
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+        // Delete folders
+        if (teamFolder.exists()) {
+            teamFolder.delete();
+        }
+        if (indexFolder.exists()) {
+            indexFolder.delete();
         }
     }
 }
