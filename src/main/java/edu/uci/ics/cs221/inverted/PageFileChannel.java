@@ -62,11 +62,11 @@ public class PageFileChannel implements AutoCloseable {
      */
     public static PageFileChannel createOrOpen(Path path) {
         try {
-            if (! Files.exists(path)) {
+            if (!Files.exists(path)) {
                 Files.createDirectories(path.getParent());
                 Files.createFile(path);
             }
-            Verify.verify(! Files.isDirectory(path));
+            Verify.verify(!Files.isDirectory(path));
             return new PageFileChannel(FileChannel.open(path, READ, WRITE));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

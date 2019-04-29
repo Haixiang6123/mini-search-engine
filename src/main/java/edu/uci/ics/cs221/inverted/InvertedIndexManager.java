@@ -37,11 +37,15 @@ public class InvertedIndexManager {
 
     // Native analyzer
     private Analyzer analyzer = null;
+    // Native Page File Channel
+    private PageFileChannel pageFileChannel = null;
     // In-memory data structure for storing inverted index
     private Map<String, List<Integer>> invertedIndex = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
+//        this.pageFileChannel = PageFileChannel.createOrOpen(Paths.get("index/Team4OrSearchTest/segment0"));
+//        pageFileChannel.close();
         this.invertedIndex = new HashMap<>();
     }
 
@@ -77,7 +81,7 @@ public class InvertedIndexManager {
             List<Integer> indexes = invertedIndex.get(token);
             if (indexes == null) {
                 // Create a new list
-                invertedIndex.put(token, new ArrayList<>(document.hashCode()));
+                invertedIndex.put(token, new ArrayList<>(Collections.singletonList(document.hashCode())));
             }
             else {
                 // Add to exist list
