@@ -7,6 +7,7 @@ import utils.Utils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,11 +42,12 @@ public class InvertedIndexManager {
     private PageFileChannel pageFileChannel = null;
     // In-memory data structure for storing inverted index
     private Map<String, List<Integer>> invertedIndex = null;
+    // Base directory
+    private Path basePath = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
-//        this.pageFileChannel = PageFileChannel.createOrOpen(Paths.get("index/Team4OrSearchTest/segment0"));
-//        pageFileChannel.close();
+        this.basePath = Paths.get(indexFolder);
         this.invertedIndex = new HashMap<>();
     }
 
@@ -95,7 +97,13 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-        throw new UnsupportedOperationException();
+        String str = "hello world";
+        System.out.println(str.getBytes().length);
+        ByteBuffer buffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        buffer.put(str.getBytes());
+        pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment3"));
+        pageFileChannel.writePage(str.getBytes().length / PageFileChannel.PAGE_SIZE, buffer);
+        pageFileChannel.close();
     }
 
     /**
