@@ -3,11 +3,16 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import org.eclipse.collections.api.set.primitive.CharSet;
 import utils.Utils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,7 +20,7 @@ import java.util.*;
 
 /**
  * This class manages an disk-based inverted index and all the documents in the inverted index.
- *
+ * <p>
  * Please refer to the project 2 wiki page for implementation guidelines.
  */
 public class InvertedIndexManager {
@@ -23,7 +28,7 @@ public class InvertedIndexManager {
     /**
      * The default flush threshold, in terms of number of documents.
      * For example, a new Segment should be automatically created whenever there's 1000 documents in the buffer.
-     *
+     * <p>
      * In test cases, the default flush threshold could possibly be set to any number.
      */
     public static int DEFAULT_FLUSH_THRESHOLD = 1000;
@@ -31,7 +36,7 @@ public class InvertedIndexManager {
     /**
      * The default merge threshold, in terms of number of segments in the inverted index.
      * When the number of segments reaches the threshold, a merge should be automatically triggered.
-     *
+     * <p>
      * In test cases, the default merge threshold could possibly be set to any number.
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
@@ -41,14 +46,14 @@ public class InvertedIndexManager {
     // Native Page File Channel
     private PageFileChannel pageFileChannel = null;
     // In-memory data structure for storing inverted index
-    private Map<String, List<Integer>> invertedIndex = null;
+    private Map<String, List<Integer>> invertedIndexes = null;
     // Base directory
     private Path basePath = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
-        this.invertedIndex = new HashMap<>();
+        this.invertedIndexes = new HashMap<>();
     }
 
     /**
@@ -75,19 +80,19 @@ public class InvertedIndexManager {
     /**
      * Adds a document to the inverted index.
      * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
+     *
      * @param document
      */
     public void addDocument(Document document) {
         List<String> tokens = this.analyzer.analyze(document.getText());
         for (String token : tokens) {
-            List<Integer> indexes = invertedIndex.get(token);
-            if (indexes == null) {
+            List<Integer> documentIds = invertedIndexes.get(token);
+            if (documentIds == null) {
                 // Create a new list
-                invertedIndex.put(token, new ArrayList<>(Collections.singletonList(document.hashCode())));
-            }
-            else {
+                invertedIndexes.put(token, new ArrayList<>(Collections.singletonList(document.hashCode())));
+            } else {
                 // Add to exist list
-                indexes.add(document.hashCode());
+                documentIds.add(documentIds.size());
             }
         }
     }
@@ -97,12 +102,51 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-        String str = "hello world";
-        System.out.println(str.getBytes().length);
-        ByteBuffer buffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
-        buffer.put(str.getBytes());
-        pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment3"));
-        pageFileChannel.writePage(str.getBytes().length / PageFileChannel.PAGE_SIZE, buffer);
+        Set<String> words = this.invertedIndexes.keySet();
+
+        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * (20 + 4 + 4 + 4));
+        ByteBuffer listsBuffer = ByteBuffer.allocate(0);
+        long segmentSize = words.size() * (20 + 4 + 4 + 4);
+
+        for (String word : words) {
+            List<Integer> documentIds = this.invertedIndexes.get(word);
+            // List Block
+            ByteBuffer listBuffer = ByteBuffer.allocate(documentIds.size() * 20);
+            for (Integer documentId : documentIds) {
+                listBuffer.put(ByteBuffer.allocate(20).put(String.valueOf(documentId).getBytes(StandardCharsets.UTF_8)));
+            }
+
+            // Append List block
+            int listsBufferCapacity = listsBuffer.capacity() + listBuffer.capacity();
+            listsBuffer = ByteBuffer.allocate(listsBufferCapacity)
+                    .put(listsBuffer)
+                    .put(listBuffer);
+
+            // Word Block
+            ByteBuffer wordBuffer = ByteBuffer.allocate(20).put(word.getBytes(StandardCharsets.UTF_8));
+            ByteBuffer pageNumBuffer = ByteBuffer.allocate(4).put(String.valueOf(segmentSize / PageFileChannel.PAGE_SIZE).getBytes(StandardCharsets.UTF_8));
+            ByteBuffer offsetBuffer = ByteBuffer.allocate(4).put(String.valueOf(segmentSize - segmentSize / PageFileChannel.PAGE_SIZE).getBytes(StandardCharsets.UTF_8));
+            ByteBuffer lengthBuffer = ByteBuffer.allocate(4).put(String.valueOf(listBuffer.capacity()).getBytes(StandardCharsets.UTF_8));
+
+            // Append word block
+            wordsBuffer = wordsBuffer
+                    .put(wordBuffer)
+                    .put(pageNumBuffer)
+                    .put(offsetBuffer)
+                    .put(lengthBuffer);
+
+            // Increment segment size
+            segmentSize += listBuffer.capacity();
+        }
+
+        // Write words buffer
+        Path segmentWordsPath = basePath.resolve("segment" + PageFileChannel.writeCounter);
+        pageFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
+        String wordsStr = StandardCharsets.UTF_8.decode(wordsBuffer).toString();
+        System.out.println("length: " + wordsStr.length());
+        System.out.println("words: " + wordsStr);
+        pageFileChannel.appendAllBytes(wordsBuffer);
+        pageFileChannel.appendAllBytes(listsBuffer);
         pageFileChannel.close();
     }
 
@@ -162,6 +206,7 @@ public class InvertedIndexManager {
 
     /**
      * Deletes all documents in all disk segments of the inverted index that match the query.
+     *
      * @param keyword
      */
     public void deleteDocuments(String keyword) {
