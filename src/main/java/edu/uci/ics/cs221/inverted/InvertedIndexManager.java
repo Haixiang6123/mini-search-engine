@@ -89,7 +89,7 @@ public class InvertedIndexManager {
             List<Integer> documentIds = invertedIndexes.get(token);
             if (documentIds == null) {
                 // Create a new list
-                invertedIndexes.put(token, new ArrayList<>(Collections.singletonList(document.hashCode())));
+                invertedIndexes.put(token, new ArrayList<>(Collections.singletonList(0)));
             } else {
                 // Add to exist list
                 documentIds.add(documentIds.size());
@@ -104,16 +104,16 @@ public class InvertedIndexManager {
     public void flush() {
         Set<String> words = this.invertedIndexes.keySet();
 
-        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * (20 + 4 + 4 + 4));
+        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * (20 + 8 + 8 + 8));
         ByteBuffer listsBuffer = ByteBuffer.allocate(0);
-        long segmentSize = words.size() * (20 + 4 + 4 + 4);
+        long segmentSize = words.size() * (20 + 8 + 8 + 8);
 
         for (String word : words) {
             List<Integer> documentIds = this.invertedIndexes.get(word);
             // List Block
-            ByteBuffer listBuffer = ByteBuffer.allocate(documentIds.size() * 20);
+            ByteBuffer listBuffer = ByteBuffer.allocate(documentIds.size() * 4);
             for (Integer documentId : documentIds) {
-                listBuffer.put(ByteBuffer.allocate(20).put(String.valueOf(documentId).getBytes(StandardCharsets.UTF_8)));
+                listBuffer.put(ByteBuffer.allocate(4).putInt(documentId));
             }
 
             // Append List block
@@ -124,9 +124,9 @@ public class InvertedIndexManager {
 
             // Word Block
             ByteBuffer wordBuffer = ByteBuffer.allocate(20).put(word.getBytes(StandardCharsets.UTF_8));
-            ByteBuffer pageNumBuffer = ByteBuffer.allocate(4).put(String.valueOf(segmentSize / PageFileChannel.PAGE_SIZE).getBytes(StandardCharsets.UTF_8));
-            ByteBuffer offsetBuffer = ByteBuffer.allocate(4).put(String.valueOf(segmentSize - segmentSize / PageFileChannel.PAGE_SIZE).getBytes(StandardCharsets.UTF_8));
-            ByteBuffer lengthBuffer = ByteBuffer.allocate(4).put(String.valueOf(listBuffer.capacity()).getBytes(StandardCharsets.UTF_8));
+            ByteBuffer pageNumBuffer = ByteBuffer.allocate(8).putLong(segmentSize / PageFileChannel.PAGE_SIZE);
+            ByteBuffer offsetBuffer = ByteBuffer.allocate(8).putLong(segmentSize - segmentSize / PageFileChannel.PAGE_SIZE);
+            ByteBuffer lengthBuffer = ByteBuffer.allocate(8).putLong(listBuffer.capacity());
 
             // Append word block
             wordsBuffer = wordsBuffer
@@ -142,12 +142,14 @@ public class InvertedIndexManager {
         // Write words buffer
         Path segmentWordsPath = basePath.resolve("segment" + PageFileChannel.writeCounter);
         pageFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
-        String wordsStr = StandardCharsets.UTF_8.decode(wordsBuffer).toString();
-        System.out.println("length: " + wordsStr.length());
-        System.out.println("words: " + wordsStr);
         pageFileChannel.appendAllBytes(wordsBuffer);
         pageFileChannel.appendAllBytes(listsBuffer);
         pageFileChannel.close();
+//        System.out.println(wordsBuffer.toString());
+//        String wordsStr = StandardCharsets.UTF_8.decode(wordsBuffer).toString();
+//        String wordsStr = new String(wordsBuffer.ge,StandardCharsets.UTF_8);
+//        System.out.println("length: " + wordsBuffer.getLong(48));
+//        System.out.println("words: " + wordsStr);
     }
 
     /**
@@ -233,6 +235,4 @@ public class InvertedIndexManager {
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
         throw new UnsupportedOperationException();
     }
-
-
 }
