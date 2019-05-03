@@ -47,7 +47,6 @@ public class InvertedIndexManager {
     private Map<String, List<Integer>> invertedLists = null;
     // Base directory
     private Path basePath = null;
-    private String baseUrl = "index/Team4OrSearchTest";
     // Segment num
     private int numSegments = 0;
     // Buffers
@@ -96,7 +95,7 @@ public class InvertedIndexManager {
      * Get Document Store instance
      */
     private DocumentStore getDocumentStore(int segumentNum) {
-        return MapdbDocStore.createOrOpen(this.baseUrl + "/store" + segumentNum);
+        return MapdbDocStore.createOrOpen(this.basePath.resolve("store" + segumentNum).toString());
     }
 
     /**
