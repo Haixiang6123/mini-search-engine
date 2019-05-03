@@ -3,15 +3,10 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
-import org.eclipse.collections.api.set.primitive.CharSet;
-import utils.Utils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,19 +36,23 @@ public class InvertedIndexManager {
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
 
+    private int WORD_BLOCK = 20 + 8 + 8 + 8;
+
     // Native analyzer
     private Analyzer analyzer = null;
     // Native Page File Channel
     private PageFileChannel pageFileChannel = null;
     // In-memory data structure for storing inverted index
-    private Map<String, List<Integer>> invertedIndexes = null;
+    private Map<String, List<Integer>> invertedLists = null;
     // Base directory
     private Path basePath = null;
+    // Segment num
+    private int numSegments = 0;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
-        this.invertedIndexes = new HashMap<>();
+        this.invertedLists = new HashMap<>();
     }
 
     /**
@@ -86,10 +85,10 @@ public class InvertedIndexManager {
     public void addDocument(Document document) {
         List<String> tokens = this.analyzer.analyze(document.getText());
         for (String token : tokens) {
-            List<Integer> documentIds = invertedIndexes.get(token);
+            List<Integer> documentIds = invertedLists.get(token);
             if (documentIds == null) {
                 // Create a new list
-                invertedIndexes.put(token, new ArrayList<>(Collections.singletonList(0)));
+                invertedLists.put(token, new ArrayList<>(Collections.singletonList(0)));
             } else {
                 // Add to exist list
                 documentIds.add(documentIds.size());
@@ -102,54 +101,54 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-        Set<String> words = this.invertedIndexes.keySet();
+        Set<String> words = this.invertedLists.keySet();
 
-        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * (20 + 8 + 8 + 8));
-        ByteBuffer listsBuffer = ByteBuffer.allocate(0);
-        long segmentSize = words.size() * (20 + 8 + 8 + 8);
-
-        for (String word : words) {
-            List<Integer> documentIds = this.invertedIndexes.get(word);
-            // List Block
-            ByteBuffer listBuffer = ByteBuffer.allocate(documentIds.size() * 4);
-            for (Integer documentId : documentIds) {
-                listBuffer.put(ByteBuffer.allocate(4).putInt(documentId));
-            }
-
-            // Append List block
-            int listsBufferCapacity = listsBuffer.capacity() + listBuffer.capacity();
-            listsBuffer = ByteBuffer.allocate(listsBufferCapacity)
-                    .put(listsBuffer)
-                    .put(listBuffer);
-
-            // Word Block
-            ByteBuffer wordBuffer = ByteBuffer.allocate(20).put(word.getBytes(StandardCharsets.UTF_8));
-            ByteBuffer pageNumBuffer = ByteBuffer.allocate(8).putLong(segmentSize / PageFileChannel.PAGE_SIZE);
-            ByteBuffer offsetBuffer = ByteBuffer.allocate(8).putLong(segmentSize - segmentSize / PageFileChannel.PAGE_SIZE);
-            ByteBuffer lengthBuffer = ByteBuffer.allocate(8).putLong(listBuffer.capacity());
-
-            // Append word block
-            wordsBuffer = wordsBuffer
-                    .put(wordBuffer)
-                    .put(pageNumBuffer)
-                    .put(offsetBuffer)
-                    .put(lengthBuffer);
-
-            // Increment segment size
-            segmentSize += listBuffer.capacity();
+        int listsBufferLength = 0;
+        for (String word: words) {
+            listsBufferLength += this.invertedLists.get(word).size() * 4;
         }
 
+        long listsPosition = 0;
+        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * this.WORD_BLOCK);
+        ByteBuffer listsBuffer = ByteBuffer.allocate(listsBufferLength);
+
+        for (String word : words) {
+            List<Integer> documentIds = this.invertedLists.get(word);
+            // List Block
+            for (Integer documentId : documentIds) {
+                listsBuffer.putInt(documentId);
+                System.out.println(documentId);
+            }
+
+            int listByteLength = documentIds.size() * 4;
+
+            // Word Block
+            wordsBuffer
+                    .put(word.getBytes(StandardCharsets.US_ASCII))
+                    .putLong(listsPosition / PageFileChannel.PAGE_SIZE)
+                    .putLong(listsPosition - listsPosition / PageFileChannel.PAGE_SIZE)
+                    .putLong(listByteLength);
+
+            // Increment segment size
+            listsPosition += listByteLength;
+        }
+
+        String s = new String(listsBuffer.array(), StandardCharsets.US_ASCII);
+        String str = new String(wordsBuffer.array(), StandardCharsets.US_ASCII);
+        System.out.println(s);
+        System.out.println(str);
+
         // Write words buffer
-        Path segmentWordsPath = basePath.resolve("segment" + PageFileChannel.writeCounter);
+        Path segmentWordsPath = basePath.resolve("segment" + this.numSegments + "_words");
         pageFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
         pageFileChannel.appendAllBytes(wordsBuffer);
+        pageFileChannel.close();
+        Path segmentListsPath = basePath.resolve("segment" + this.numSegments + "_lists");
+        pageFileChannel = PageFileChannel.createOrOpen(segmentListsPath);
         pageFileChannel.appendAllBytes(listsBuffer);
         pageFileChannel.close();
-//        System.out.println(wordsBuffer.toString());
-//        String wordsStr = StandardCharsets.UTF_8.decode(wordsBuffer).toString();
-//        String wordsStr = new String(wordsBuffer.ge,StandardCharsets.UTF_8);
-//        System.out.println("length: " + wordsBuffer.getLong(48));
-//        System.out.println("words: " + wordsStr);
+
+        this.numSegments += 1;
     }
 
     /**
@@ -222,7 +221,7 @@ public class InvertedIndexManager {
      * @return number of index segments.
      */
     public int getNumSegments() {
-        throw new UnsupportedOperationException();
+        return this.numSegments;
     }
 
     /**
@@ -233,6 +232,19 @@ public class InvertedIndexManager {
      * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
      */
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
-        throw new UnsupportedOperationException();
+        Path segmentWordsPath = basePath.resolve("segment" + segmentNum + "_words");
+        PageFileChannel wordsFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
+        ByteBuffer wordsBuffer = wordsFileChannel.readAllPages();
+
+        Path segmentListsPath = basePath.resolve("segment" + segmentNum + "_lists");
+        PageFileChannel listsFileChannel = PageFileChannel.createOrOpen(segmentListsPath);
+        ByteBuffer listsBuffer = listsFileChannel.readAllPages();
+
+        Map<Integer, List<String>> invertedLists = new HashMap<>();
+        Map<Integer, Document> documents = new HashMap<>();
+
+
+
+        return null;
     }
 }

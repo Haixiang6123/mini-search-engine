@@ -105,7 +105,7 @@ public class Team4OrSearchTest {
     /**
      * Clean up the cache files
      */
-    @After
+//    @After
     public void after() {
         File indexFolder = new File(Paths.get(indexFolderName).toString());
         File teamFolder = new File(Paths.get(indexFolderName, teamFolderName).toString());
