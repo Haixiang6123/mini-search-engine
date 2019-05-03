@@ -105,6 +105,9 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
+        if (this.invertedLists.size() >= DEFAULT_FLUSH_THRESHOLD) {
+            this.flush();
+        }
         // Add to in-memory documents map
         this.documentStore = this.getDocumentStore(this.numSegments);
         // Get new document ID
@@ -117,6 +120,7 @@ public class InvertedIndexManager {
         for (String word : words) {
             // Get documents that contain that word and store its ID
             List<Integer> documentIds = this.invertedLists.get(word);
+            System.out.println(word + "---: " + Utils.stringifyList(documentIds));
             if (documentIds == null) {
                 // Create a new list
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
@@ -223,6 +227,7 @@ public class InvertedIndexManager {
         listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
 
         // Increment segment number
+        System.out.println("plus");
         this.numSegments += 1;
     }
 
