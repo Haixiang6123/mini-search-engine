@@ -3,6 +3,8 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import edu.uci.ics.cs221.storage.DocumentStore;
+import edu.uci.ics.cs221.storage.MapdbDocStore;
 import utils.Utils;
 
 import java.io.IOException;
@@ -43,21 +45,21 @@ public class InvertedIndexManager {
     private Analyzer analyzer = null;
     // In-memory data structure for storing inverted index
     private Map<String, List<Integer>> invertedLists = null;
-    // In-memory documents
-    private Map<Integer, Document> documents = null;
     // Base directory
     private Path basePath = null;
+    private String baseUrl = "index/Team4OrSearchTest";
     // Segment num
     private int numSegments = 0;
     // Buffers
     private ByteBuffer wordsBuffer = null;
     private ByteBuffer listsBuffer = null;
+    // Local document store
+    private DocumentStore documentStore = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
         this.invertedLists = new HashMap<>();
-        this.documents = new HashMap<>();
         this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
     }
@@ -91,6 +93,13 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Get Document Store instance
+     */
+    private DocumentStore getDocumentStore(int segumentNum) {
+        return MapdbDocStore.createOrOpen(this.baseUrl + "/store" + segumentNum);
+    }
+
+    /**
      * Adds a document to the inverted index.
      * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
      *
@@ -98,20 +107,27 @@ public class InvertedIndexManager {
      */
     public void addDocument(Document document) {
         // Add to in-memory documents map
-        int newDocId = documents.keySet().size();
-        documents.put(newDocId, document);
+        this.documentStore = this.getDocumentStore(this.numSegments);
+        // Get new document ID
+        int newDocId = (int) documentStore.size();
+        // Add new document to store
+        this.documentStore.addDocument(newDocId, document);
 
+        // Use Analyzer to extract words from a document
         List<String> words = this.analyzer.analyze(document.getText());
         for (String word : words) {
-            List<Integer> documentIds = invertedLists.get(word);
+            // Get documents that contain that word and store its ID
+            List<Integer> documentIds = this.invertedLists.get(word);
             if (documentIds == null) {
                 // Create a new list
-                invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
+                this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
             } else {
                 // Add to exist list
                 documentIds.add(newDocId);
             }
         }
+
+        this.documentStore.close();
     }
 
     /**
@@ -171,14 +187,10 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-        System.out.println(Utils.stringifyHashMap(invertedLists));
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
         int wordsPageNum = 0;
         int listsPageNum = 0;
-
-        // Mark down how many documents
-        wordsBuffer.putInt(this.documents.size());
 
         for (String word : this.invertedLists.keySet()) {
             // Get document IDs by given word
@@ -298,10 +310,8 @@ public class InvertedIndexManager {
         ByteBuffer wordsBuffer = wordsFileChannel.readAllPages();
         wordsBuffer.flip();
 
-        Map<String, List<Integer>> invertedLists = new HashMap<>();
-        Map<Integer, Document> documents = new HashMap<>();
-
-        int documentNum = wordsBuffer.getInt();
+        Map<String, List<Integer>> invertedListsForTest = new HashMap<>();
+        Map<Integer, Document> documentsForTest = new HashMap<>();
 
         while (wordsBuffer.position() < wordsBuffer.capacity()) {
             // Read word length
@@ -317,16 +327,18 @@ public class InvertedIndexManager {
             );
 
             // Update inverted lists
-            invertedLists.put(wordBlock.word, this.parseWordBlock(wordBlock, listsFileChannel));
+            List<Integer> invertedList = this.updateInvertedListsForTest(wordBlock, invertedListsForTest, listsFileChannel);
+
+            // Update documents
+            this.updateDocumentsForTest(segmentNum, invertedList, documentsForTest);
         }
-        System.out.println(Utils.stringifyHashMap(invertedLists));
-        return null;
+        return new InvertedIndexSegmentForTest(invertedListsForTest, documentsForTest);
     }
 
     /**
      * Parse word block
      */
-    private List<Integer> parseWordBlock(WordBlock wordBlock, PageFileChannel listsFileChannel) {
+    private List<Integer> updateInvertedListsForTest(WordBlock wordBlock, Map<String, List<Integer>> invertedListsForTest, PageFileChannel listsFileChannel) {
         List<Integer> invertedList = new ArrayList<>();
 
         // Setup reading buffer
@@ -337,6 +349,27 @@ public class InvertedIndexManager {
         for (int i = 0; i < wordBlock.listLength; i++) {
             invertedList.add(listsBuffer.getInt());
         }
+
+        invertedListsForTest.put(wordBlock.word, invertedList);
+
         return invertedList;
+    }
+
+    /**
+     * Update documents
+     */
+    private void updateDocumentsForTest(int segmentNum, List<Integer> invertedListForTest, Map<Integer, Document> documentsForTest) {
+        // Initialize document store
+        DocumentStore documentStore = this.getDocumentStore(segmentNum);
+        // Get current all document IDs
+        Set<Integer> documentIds = documentsForTest.keySet();
+        for (Integer documentId : invertedListForTest) {
+            // If not exist, then store document in documents
+            if (!documentIds.contains(documentId)) {
+                documentsForTest.put(documentId, documentStore.getDocument(documentId));
+            }
+        }
+        // Close document store
+        documentStore.close();
     }
 }
