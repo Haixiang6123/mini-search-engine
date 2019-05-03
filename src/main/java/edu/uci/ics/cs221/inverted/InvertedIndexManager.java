@@ -118,7 +118,7 @@ public class InvertedIndexManager {
         for (String word : words) {
             // Get documents that contain that word and store its ID
             List<Integer> documentIds = this.invertedLists.get(word);
-            System.out.println(word + "---: " + Utils.stringifyList(documentIds));
+//            System.out.println(word + "---: " + Utils.stringifyList(documentIds));
             if (documentIds == null) {
                 // Create a new list
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
@@ -236,7 +236,7 @@ public class InvertedIndexManager {
         this.invertedLists.clear();
 
         // Increment segment number
-        System.out.println("plus");
+//        System.out.println("plus");
         this.numSegments += 1;
     }
 
@@ -291,7 +291,13 @@ public class InvertedIndexManager {
      * Iterates through all the documents in all disk segments.
      */
     public Iterator<Document> documentIterator() {
-        throw new UnsupportedOperationException();
+        List<Document> documents = new ArrayList<>();
+        // Append local segment documents in whole list
+        for (int segmentNum = 0; segmentNum < this.numSegments; segmentNum++) {
+            documents.addAll(this.getIndexSegment(segmentNum).getDocuments().values());
+        }
+
+        return documents.iterator();
     }
 
     /**
@@ -349,7 +355,9 @@ public class InvertedIndexManager {
             // Update documents
             this.updateDocumentsForTest(segmentNum, invertedList, documentsForTest);
         }
-        return new InvertedIndexSegmentForTest(invertedListsForTest, documentsForTest);
+
+        return invertedListsForTest.size() != 0 ?
+                new InvertedIndexSegmentForTest(invertedListsForTest, documentsForTest) : null;
     }
 
     /**
