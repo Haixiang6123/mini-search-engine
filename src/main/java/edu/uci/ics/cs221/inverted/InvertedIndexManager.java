@@ -132,54 +132,75 @@ public class InvertedIndexManager {
         return currentPageNum + 1;
     }
 
+    /**
+     * Flush a list
+     */
+    private int flushList(PageFileChannel listsChannel, List<Integer> documentIds, int listsPageNum) {
+        // Check lists segment capacity
+        int listCapacity = documentIds.size() * Integer.BYTES;
+        listsPageNum = this.checkPageOutbound(listsChannel, listsBuffer, listCapacity, listsPageNum);
+
+        // List Block
+        for (Integer documentId : documentIds) {
+            listsBuffer.putInt(documentId);
+        }
+
+        return listsPageNum;
+    }
+
+    /**
+     * Flush a word
+     */
+    private int flushWord(PageFileChannel wordsChannel, String word, int wordsPageNum, int listsPageNum, int listOffset, int listLength) {
+        int wordCapacity = Integer.BYTES + word.getBytes().length + Integer.BYTES + Integer.BYTES + Integer.BYTES;
+        wordsPageNum = this.checkPageOutbound(wordsChannel, wordsBuffer, wordCapacity, wordsPageNum);
+
+        // Word Block
+        wordsBuffer
+                .putInt(word.getBytes().length) // Word length
+                .put(word.getBytes(StandardCharsets.US_ASCII)) // Word
+                .putInt(listsPageNum) // Page num
+                .putInt(listOffset) // Offset
+                .putInt(listLength); // List length
+
+        return wordsPageNum;
+    }
 
     /**
      * Flushes all the documents in the in-memory segment buffer to disk. If the buffer is empty, it should not do anything.
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-
         System.out.println(Utils.stringifyHashMap(invertedLists));
+        PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
+        PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
         int wordsPageNum = 0;
         int listsPageNum = 0;
 
-        PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
-        PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
-
-        // Mark how many documents
+        // Mark down how many documents
         wordsBuffer.putInt(this.documents.size());
 
         for (String word : this.invertedLists.keySet()) {
+            // Get document IDs by given word
             List<Integer> documentIds = this.invertedLists.get(word);
 
-            // Check lists segment capacity
-            int listCapacity = documentIds.size() * 4;
+            // Mark down current lists buffer offset
             int listOffset = listsBuffer.position();
 
-            listsPageNum = this.checkPageOutbound(listsChannel, listsBuffer, listCapacity, listsPageNum);
-            // List Block
-            for (Integer documentId : documentIds) {
-                listsBuffer.putInt(documentId);
-            }
+            // Check lists segment capacity
+            listsPageNum = this.flushList(listsChannel, documentIds, listsPageNum);
 
             // Check words segment capacity
-            int wordCapacity = 4 + word.getBytes().length + 4 + 4 + 4;
-            wordsPageNum = this.checkPageOutbound(wordsChannel, wordsBuffer, wordCapacity, wordsPageNum);
-
-            // Word Block
-            wordsBuffer
-                    .putInt(word.getBytes().length) // Word length
-                    .put(word.getBytes(StandardCharsets.US_ASCII)) // Word
-                    .putInt(listsPageNum) // Page num
-                    .putInt(listOffset) // Offset
-                    .putInt(documentIds.size()); // List length
+            wordsPageNum = this.flushWord(wordsChannel, word, wordsPageNum, listsPageNum, listOffset, documentIds.size());
         }
 
+        // Write remaining content from buffer
         listsChannel.writePage(listsPageNum, listsBuffer);
-        listsChannel.close();
         wordsChannel.writePage(wordsPageNum, wordsBuffer);
+        listsChannel.close();
         wordsChannel.close();
 
+        // Increment segment number
         this.numSegments += 1;
     }
 
