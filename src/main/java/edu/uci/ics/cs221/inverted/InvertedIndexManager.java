@@ -151,17 +151,17 @@ public class InvertedIndexManager {
     /**
      * Flush a word
      */
-    private int flushWord(PageFileChannel wordsChannel, String word, int wordsPageNum, int listsPageNum, int listOffset, int listLength) {
-        int wordCapacity = Integer.BYTES + word.getBytes().length + Integer.BYTES + Integer.BYTES + Integer.BYTES;
+    private int flushWord(PageFileChannel wordsChannel, WordBlock wordBlock, int wordsPageNum) {
+        int wordCapacity = Integer.BYTES + wordBlock.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES;
         wordsPageNum = this.checkPageOutbound(wordsChannel, wordsBuffer, wordCapacity, wordsPageNum);
 
         // Word Block
         wordsBuffer
-                .putInt(word.getBytes().length) // Word length
-                .put(word.getBytes(StandardCharsets.US_ASCII)) // Word
-                .putInt(listsPageNum) // Page num
-                .putInt(listOffset) // Offset
-                .putInt(listLength); // List length
+                .putInt(wordBlock.wordLength) // Word length
+                .put(wordBlock.word.getBytes(StandardCharsets.US_ASCII)) // Word
+                .putInt(wordBlock.listsPageNum) // Page num
+                .putInt(wordBlock.listOffset) // Offset
+                .putInt(wordBlock.listLength); // List length
 
         return wordsPageNum;
     }
@@ -191,7 +191,14 @@ public class InvertedIndexManager {
             listsPageNum = this.flushList(listsChannel, documentIds, listsPageNum);
 
             // Check words segment capacity
-            wordsPageNum = this.flushWord(wordsChannel, word, wordsPageNum, listsPageNum, listOffset, documentIds.size());
+            WordBlock wordBlock = new WordBlock(
+                    word.getBytes().length, // Word length
+                    word,                   // Word
+                    listsPageNum,           // Lists page num
+                    listOffset,             // List offset
+                    documentIds.size()      // List length
+            );
+            wordsPageNum = this.flushWord(wordsChannel, wordBlock, wordsPageNum);
         }
 
         // Write remaining content from buffer
@@ -300,27 +307,36 @@ public class InvertedIndexManager {
             // Read word length
             int wordLength = wordsBuffer.getInt();
             if (wordLength == 0) { break; }
-            // Read word
-            String word = Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength);
-            // Read page num
-            int listPageNum = wordsBuffer.getInt();
-            // Read length offset
-            int listOffset = wordsBuffer.getInt();
-            // Read list length
-            int listLength = wordsBuffer.getInt();
 
-            // Find list
-            List<Integer> invertedList = new ArrayList<>();
+            WordBlock wordBlock = new WordBlock(
+                    wordLength, // Word length
+                    Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength), // Word
+                    wordsBuffer.getInt(), // Lists page num
+                    wordsBuffer.getInt(), // List offset
+                    wordsBuffer.getInt()  // List length
+            );
 
-            listsBuffer = listsFileChannel.readPage(listPageNum);
-            listsBuffer.position(listOffset);
-            for (int i = 0; i < listLength; i++) {
-                int docID = listsBuffer.getInt();
-                invertedList.add(docID);
-            }
-            invertedLists.put(word, invertedList);
+            // Update inverted lists
+            invertedLists.put(wordBlock.word, this.parseWordBlock(wordBlock, listsFileChannel));
         }
         System.out.println(Utils.stringifyHashMap(invertedLists));
         return null;
+    }
+
+    /**
+     * Parse word block
+     */
+    private List<Integer> parseWordBlock(WordBlock wordBlock, PageFileChannel listsFileChannel) {
+        List<Integer> invertedList = new ArrayList<>();
+
+        // Setup reading buffer
+        listsBuffer = listsFileChannel.readPage(wordBlock.listsPageNum);
+        listsBuffer.position(wordBlock.listOffset);
+
+        // Read document IDs
+        for (int i = 0; i < wordBlock.listLength; i++) {
+            invertedList.add(listsBuffer.getInt());
+        }
+        return invertedList;
     }
 }
