@@ -218,6 +218,10 @@ public class InvertedIndexManager {
         listsChannel.close();
         wordsChannel.close();
 
+        // Reset buffers
+        wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+
         // Increment segment number
         this.numSegments += 1;
     }
