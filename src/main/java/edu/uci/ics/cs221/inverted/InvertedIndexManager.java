@@ -105,15 +105,13 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
-        if (this.invertedLists.size() >= DEFAULT_FLUSH_THRESHOLD) {
-            this.flush();
-        }
         // Add to in-memory documents map
         this.documentStore = this.getDocumentStore(this.numSegments);
         // Get new document ID
         int newDocId = (int) documentStore.size();
         // Add new document to store
         this.documentStore.addDocument(newDocId, document);
+        this.documentStore.close();
 
         // Use Analyzer to extract words from a document
         List<String> words = this.analyzer.analyze(document.getText());
@@ -130,7 +128,10 @@ public class InvertedIndexManager {
             }
         }
 
-        this.documentStore.close();
+        // Auto flush
+        if (newDocId + 1 >= DEFAULT_FLUSH_THRESHOLD) {
+            this.flush();
+        }
     }
 
     /**
@@ -223,8 +224,11 @@ public class InvertedIndexManager {
         wordsChannel.close();
 
         // Reset buffers
-        wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
-        listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+
+        // Reset inverted lists
+        this.invertedLists.clear();
 
         // Increment segment number
         System.out.println("plus");
