@@ -209,6 +209,12 @@ public class InvertedIndexManager {
             return;
         }
 
+        // Reset document store
+        if (this.documentStore != null) {
+            this.documentStore.close();
+            this.documentStore = null;
+        }
+
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
         int wordsPageNum = 0;
@@ -254,12 +260,6 @@ public class InvertedIndexManager {
 
         // Increment segment number
         this.numSegments += 1;
-
-        // Reopen document store
-        if (this.documentStore != null) {
-            this.documentStore.close();
-            this.documentStore = null;
-        }
     }
 
     /**
@@ -412,7 +412,7 @@ public class InvertedIndexManager {
     /**
      * Parse word block
      */
-    private List<Integer> updateInvertedListsForTest(WordBlock wordBlock, Map<String, List<Integer>> invertedListsForTest, PageFileChannel listsFileChannel) {
+    private void updateInvertedListsForTest(WordBlock wordBlock, Map<String, List<Integer>> invertedListsForTest, PageFileChannel listsFileChannel) {
         List<Integer> invertedList = new ArrayList<>();
 
         // Setup reading buffer
@@ -425,7 +425,5 @@ public class InvertedIndexManager {
         }
 
         invertedListsForTest.put(wordBlock.word, invertedList);
-
-        return invertedList;
     }
 }
