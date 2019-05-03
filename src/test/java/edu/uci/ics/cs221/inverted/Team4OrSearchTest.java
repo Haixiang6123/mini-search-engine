@@ -45,6 +45,7 @@ public class Team4OrSearchTest {
         manager.addDocument(doc2);
         manager.addDocument(doc3);
         manager.flush();
+        manager.getIndexSegment(0);
     }
 
     /**

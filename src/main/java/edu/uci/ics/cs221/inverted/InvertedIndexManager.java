@@ -3,6 +3,7 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
+import utils.Utils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,19 +41,25 @@ public class InvertedIndexManager {
 
     // Native analyzer
     private Analyzer analyzer = null;
-    // Native Page File Channel
-    private PageFileChannel pageFileChannel = null;
     // In-memory data structure for storing inverted index
     private Map<String, List<Integer>> invertedLists = null;
+    // In-memory documents
+    private Map<Integer, Document> documents = null;
     // Base directory
     private Path basePath = null;
     // Segment num
     private int numSegments = 0;
+    // Buffers
+    private ByteBuffer wordsBuffer = null;
+    private ByteBuffer listsBuffer = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
         this.invertedLists = new HashMap<>();
+        this.documents = new HashMap<>();
+        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
     }
 
     /**
@@ -77,76 +84,101 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Get segment channel by given keyword
+     */
+    private PageFileChannel getSegmentChannel(int segmentNum, String keyword) {
+        return PageFileChannel.createOrOpen(basePath.resolve("segment" + segmentNum + "_" + keyword));
+    }
+
+    /**
      * Adds a document to the inverted index.
      * Document should live in a in-memory buffer until `flush()` is called to write the segment to disk.
      *
      * @param document
      */
     public void addDocument(Document document) {
-        List<String> tokens = this.analyzer.analyze(document.getText());
-        for (String token : tokens) {
-            List<Integer> documentIds = invertedLists.get(token);
+        // Add to in-memory documents map
+        int newDocId = documents.keySet().size();
+        documents.put(newDocId, document);
+
+        List<String> words = this.analyzer.analyze(document.getText());
+        for (String word : words) {
+            List<Integer> documentIds = invertedLists.get(word);
             if (documentIds == null) {
                 // Create a new list
-                invertedLists.put(token, new ArrayList<>(Collections.singletonList(0)));
+                invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
             } else {
                 // Add to exist list
-                documentIds.add(documentIds.size());
+                documentIds.add(newDocId);
             }
         }
     }
+
+    /**
+     * Check for if current buffer exceed given capacity
+     */
+    private int checkPageOutbound(PageFileChannel fileChannel, ByteBuffer byteBuffer, int blockCapacity, int currentPageNum) {
+        // Not exceed capacity
+        if (byteBuffer.position() + blockCapacity <= listsBuffer.capacity()) {
+            return currentPageNum;
+        }
+
+        // Write to file
+        fileChannel.writePage(currentPageNum, listsBuffer);
+
+        // Allocate a new buffer
+        listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        // Increment page num
+        return currentPageNum + 1;
+    }
+
 
     /**
      * Flushes all the documents in the in-memory segment buffer to disk. If the buffer is empty, it should not do anything.
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
-        Set<String> words = this.invertedLists.keySet();
 
-        int listsBufferLength = 0;
-        for (String word: words) {
-            listsBufferLength += this.invertedLists.get(word).size() * 4;
-        }
+        System.out.println(Utils.stringifyHashMap(invertedLists));
+        int wordsPageNum = 0;
+        int listsPageNum = 0;
 
-        long listsPosition = 0;
-        ByteBuffer wordsBuffer = ByteBuffer.allocate(words.size() * this.WORD_BLOCK);
-        ByteBuffer listsBuffer = ByteBuffer.allocate(listsBufferLength);
+        PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
+        PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
 
-        for (String word : words) {
+        // Mark how many documents
+        wordsBuffer.putInt(this.documents.size());
+
+        for (String word : this.invertedLists.keySet()) {
             List<Integer> documentIds = this.invertedLists.get(word);
+
+            // Check lists segment capacity
+            int listCapacity = documentIds.size() * 4;
+            int listOffset = listsBuffer.position();
+
+            listsPageNum = this.checkPageOutbound(listsChannel, listsBuffer, listCapacity, listsPageNum);
             // List Block
             for (Integer documentId : documentIds) {
                 listsBuffer.putInt(documentId);
-                System.out.println(documentId);
             }
 
-            int listByteLength = documentIds.size() * 4;
+            // Check words segment capacity
+            int wordCapacity = 4 + word.getBytes().length + 4 + 4 + 4;
+            wordsPageNum = this.checkPageOutbound(wordsChannel, wordsBuffer, wordCapacity, wordsPageNum);
 
             // Word Block
             wordsBuffer
-                    .put(word.getBytes(StandardCharsets.US_ASCII))
-                    .putLong(listsPosition / PageFileChannel.PAGE_SIZE)
-                    .putLong(listsPosition - listsPosition / PageFileChannel.PAGE_SIZE)
-                    .putLong(listByteLength);
-
-            // Increment segment size
-            listsPosition += listByteLength;
+                    .putInt(word.getBytes().length) // Word length
+                    .put(word.getBytes(StandardCharsets.US_ASCII)) // Word
+                    .putInt(listsPageNum) // Page num
+                    .putInt(listOffset) // Offset
+                    .putInt(documentIds.size()); // List length
         }
 
-        String s = new String(listsBuffer.array(), StandardCharsets.US_ASCII);
-        String str = new String(wordsBuffer.array(), StandardCharsets.US_ASCII);
-        System.out.println(s);
-        System.out.println(str);
-
-        // Write words buffer
-        Path segmentWordsPath = basePath.resolve("segment" + this.numSegments + "_words");
-        pageFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
-        pageFileChannel.appendAllBytes(wordsBuffer);
-        pageFileChannel.close();
-        Path segmentListsPath = basePath.resolve("segment" + this.numSegments + "_lists");
-        pageFileChannel = PageFileChannel.createOrOpen(segmentListsPath);
-        pageFileChannel.appendAllBytes(listsBuffer);
-        pageFileChannel.close();
+        listsChannel.writePage(listsPageNum, listsBuffer);
+        listsChannel.close();
+        wordsChannel.writePage(wordsPageNum, wordsBuffer);
+        wordsChannel.close();
 
         this.numSegments += 1;
     }
@@ -232,19 +264,42 @@ public class InvertedIndexManager {
      * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
      */
     public InvertedIndexSegmentForTest getIndexSegment(int segmentNum) {
-        Path segmentWordsPath = basePath.resolve("segment" + segmentNum + "_words");
-        PageFileChannel wordsFileChannel = PageFileChannel.createOrOpen(segmentWordsPath);
+        PageFileChannel wordsFileChannel = this.getSegmentChannel(segmentNum, "words");
+        PageFileChannel listsFileChannel = this.getSegmentChannel(segmentNum, "lists");
+
         ByteBuffer wordsBuffer = wordsFileChannel.readAllPages();
+        wordsBuffer.flip();
 
-        Path segmentListsPath = basePath.resolve("segment" + segmentNum + "_lists");
-        PageFileChannel listsFileChannel = PageFileChannel.createOrOpen(segmentListsPath);
-        ByteBuffer listsBuffer = listsFileChannel.readAllPages();
-
-        Map<Integer, List<String>> invertedLists = new HashMap<>();
+        Map<String, List<Integer>> invertedLists = new HashMap<>();
         Map<Integer, Document> documents = new HashMap<>();
 
+        int documentNum = wordsBuffer.getInt();
 
+        while (wordsBuffer.position() < wordsBuffer.capacity()) {
+            // Read word length
+            int wordLength = wordsBuffer.getInt();
+            if (wordLength == 0) { break; }
+            // Read word
+            String word = Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength);
+            // Read page num
+            int listPageNum = wordsBuffer.getInt();
+            // Read length offset
+            int listOffset = wordsBuffer.getInt();
+            // Read list length
+            int listLength = wordsBuffer.getInt();
 
+            // Find list
+            List<Integer> invertedList = new ArrayList<>();
+
+            listsBuffer = listsFileChannel.readPage(listPageNum);
+            listsBuffer.position(listOffset);
+            for (int i = 0; i < listLength; i++) {
+                int docID = listsBuffer.getInt();
+                invertedList.add(docID);
+            }
+            invertedLists.put(word, invertedList);
+        }
+        System.out.println(Utils.stringifyHashMap(invertedLists));
         return null;
     }
 }

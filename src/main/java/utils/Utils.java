@@ -1,5 +1,7 @@
 package utils;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -29,5 +31,19 @@ public class Utils {
         }
 
         return sb.toString();
+    }
+
+    public static String bytesToString(byte[] bytes) {
+        return new String(bytes, StandardCharsets.US_ASCII);
+    }
+
+    public static String sliceStringFromBuffer(ByteBuffer byteBuffer, int start, int length) {
+        int index = 0;
+        byte[] tempBytes = new byte[length];
+        for (int position = start; position < start + length; position++) {
+            tempBytes[index++] = byteBuffer.get();
+        }
+
+        return bytesToString(tempBytes);
     }
 }
