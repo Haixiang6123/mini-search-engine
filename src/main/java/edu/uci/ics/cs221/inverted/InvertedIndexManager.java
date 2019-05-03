@@ -52,6 +52,7 @@ public class InvertedIndexManager {
     // Buffers
     private ByteBuffer wordsBuffer = null;
     private ByteBuffer listsBuffer = null;
+    private int listsBufferOffset = 0;
     // Local document store
     private DocumentStore documentStore = null;
 
@@ -59,8 +60,9 @@ public class InvertedIndexManager {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
         this.invertedLists = new HashMap<>();
-        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.wordsBuffer.putInt(0);
     }
 
     /**
@@ -118,7 +120,6 @@ public class InvertedIndexManager {
         for (String word : words) {
             // Get documents that contain that word and store its ID
             List<Integer> documentIds = this.invertedLists.get(word);
-//            System.out.println(word + "---: " + Utils.stringifyList(documentIds));
             if (documentIds == null) {
                 // Create a new list
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
@@ -135,36 +136,30 @@ public class InvertedIndexManager {
     }
 
     /**
-     * Check for if current buffer exceed given capacity
-     */
-    private int checkPageOutbound(PageFileChannel fileChannel, ByteBuffer byteBuffer, int blockCapacity, int currentPageNum) {
-        // Not exceed capacity
-        if (byteBuffer.position() + blockCapacity <= listsBuffer.capacity()) {
-            return currentPageNum;
-        }
-
-        // Write to file
-        fileChannel.writePage(currentPageNum, listsBuffer);
-
-        // Allocate a new buffer
-        listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
-        // Increment page num
-        return currentPageNum + 1;
-    }
-
-    /**
      * Flush a list
      */
     private int flushList(PageFileChannel listsChannel, List<Integer> documentIds, int listsPageNum) {
         // Check lists segment capacity
         int listCapacity = documentIds.size() * Integer.BYTES;
-        listsPageNum = this.checkPageOutbound(listsChannel, listsBuffer, listCapacity, listsPageNum);
+
+        // Exceed capacity
+        if (this.listsBuffer.position() + listCapacity >= this.listsBuffer.capacity()) {
+            // Write to file
+            listsChannel.writePage(listsPageNum, listsBuffer);
+            // Increment total page num of lists
+            listsPageNum += 1;
+            // Allocate a new buffer
+            this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+            // Update lists buffer offset
+            this.listsBufferOffset = 0;
+        }
 
         // List Block
         for (Integer documentId : documentIds) {
-            listsBuffer.putInt(documentId);
+            this.listsBuffer.putInt(documentId);
         }
 
+        // Increment page num
         return listsPageNum;
     }
 
@@ -172,11 +167,23 @@ public class InvertedIndexManager {
      * Flush a word
      */
     private int flushWord(PageFileChannel wordsChannel, WordBlock wordBlock, int wordsPageNum) {
-        int wordCapacity = Integer.BYTES + wordBlock.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES;
-        wordsPageNum = this.checkPageOutbound(wordsChannel, wordsBuffer, wordCapacity, wordsPageNum);
+        int wordBlockCapacity = wordBlock.getWordBlockCapacity();
+        // Exceed capacity
+        if (this.wordsBuffer.position() + wordBlockCapacity >= this.wordsBuffer.capacity()) {
+            // Add total size of this page to the front
+            this.wordsBuffer.putInt(0, this.wordsBuffer.position());
+            // Write to file
+            wordsChannel.writePage(wordsPageNum, this.wordsBuffer);
+            // Increment total words page num
+            wordsPageNum += 1;
+            // Allocate a new buffer
+            this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+            // Initialize words page num
+            this.wordsBuffer.putInt(0);
+        }
 
         // Word Block
-        wordsBuffer
+        this.wordsBuffer
                 .putInt(wordBlock.wordLength) // Word length
                 .put(wordBlock.word.getBytes(StandardCharsets.US_ASCII)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
@@ -206,7 +213,7 @@ public class InvertedIndexManager {
             List<Integer> documentIds = this.invertedLists.get(word);
 
             // Mark down current lists buffer offset
-            int listOffset = listsBuffer.position();
+            this.listsBufferOffset = listsBuffer.position();
 
             // Check lists segment capacity
             listsPageNum = this.flushList(listsChannel, documentIds, listsPageNum);
@@ -216,27 +223,29 @@ public class InvertedIndexManager {
                     word.getBytes().length, // Word length
                     word,                   // Word
                     listsPageNum,           // Lists page num
-                    listOffset,             // List offset
+                    this.listsBufferOffset,             // List offset
                     documentIds.size()      // List length
             );
             wordsPageNum = this.flushWord(wordsChannel, wordBlock, wordsPageNum);
         }
 
         // Write remaining content from buffer
-        listsChannel.writePage(listsPageNum, listsBuffer);
+        this.wordsBuffer.putInt(0, this.wordsBuffer.position());
         wordsChannel.writePage(wordsPageNum, wordsBuffer);
+        listsChannel.writePage(listsPageNum, listsBuffer);
         listsChannel.close();
         wordsChannel.close();
 
         // Reset buffers
-        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.listsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.wordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        // Initialize words page num
+        this.wordsBuffer.putInt(0);
 
         // Reset inverted lists
         this.invertedLists.clear();
 
         // Increment segment number
-//        System.out.println("plus");
         this.numSegments += 1;
     }
 
@@ -330,30 +339,35 @@ public class InvertedIndexManager {
         PageFileChannel wordsFileChannel = this.getSegmentChannel(segmentNum, "words");
         PageFileChannel listsFileChannel = this.getSegmentChannel(segmentNum, "lists");
 
-        ByteBuffer wordsBuffer = wordsFileChannel.readAllPages();
-        wordsBuffer.flip();
+        // Get total page num of words
+        int wordsPagesNum = wordsFileChannel.getNumPages();
 
         Map<String, List<Integer>> invertedListsForTest = new HashMap<>();
         Map<Integer, Document> documentsForTest = new HashMap<>();
 
-        while (wordsBuffer.position() < wordsBuffer.capacity()) {
-            // Read word length
-            int wordLength = wordsBuffer.getInt();
-            if (wordLength == 0) { break; }
+        for (int wordsPage = 0; wordsPage < wordsPagesNum; wordsPage++) {
+            // Get byte buffer of this page
+            ByteBuffer wordsPageBuffer = wordsFileChannel.readPage(wordsPage);
+            // Get size of this page
+            int wordsPageSize = wordsPageBuffer.getInt();
+            while (wordsPageBuffer.position() < wordsPageSize) {
+                // Read word length
+                int wordLength = wordsPageBuffer.getInt();
 
-            WordBlock wordBlock = new WordBlock(
-                    wordLength, // Word length
-                    Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength), // Word
-                    wordsBuffer.getInt(), // Lists page num
-                    wordsBuffer.getInt(), // List offset
-                    wordsBuffer.getInt()  // List length
-            );
+                WordBlock wordBlock = new WordBlock(
+                        wordLength, // Word length
+                        Utils.sliceStringFromBuffer(wordsPageBuffer, wordsPageBuffer.position(), wordLength), // Word
+                        wordsPageBuffer.getInt(), // Lists page num
+                        wordsPageBuffer.getInt(), // List offset
+                        wordsPageBuffer.getInt()  // List length
+                );
 
-            // Update inverted lists
-            List<Integer> invertedList = this.updateInvertedListsForTest(wordBlock, invertedListsForTest, listsFileChannel);
+                // Update inverted lists
+                List<Integer> invertedList = this.updateInvertedListsForTest(wordBlock, invertedListsForTest, listsFileChannel);
 
-            // Update documents
-            this.updateDocumentsForTest(segmentNum, invertedList, documentsForTest);
+                // Update documents
+                this.updateDocumentsForTest(segmentNum, invertedList, documentsForTest);
+            }
         }
 
         return invertedListsForTest.size() != 0 ?

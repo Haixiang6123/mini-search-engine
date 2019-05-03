@@ -14,4 +14,8 @@ public class WordBlock {
         this.listOffset = listOffset;
         this.listLength = listLength;
     }
+
+    public int getWordBlockCapacity() {
+        return Integer.BYTES + this.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES;
+    }
 }
