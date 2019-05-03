@@ -38,9 +38,6 @@ public class InvertedIndexManager {
      * In test cases, the default merge threshold could possibly be set to any number.
      */
     public static int DEFAULT_MERGE_THRESHOLD = 8;
-
-    private int WORD_BLOCK = 20 + 8 + 8 + 8;
-
     // Native analyzer
     private Analyzer analyzer = null;
     // In-memory data structure for storing inverted index
@@ -49,6 +46,8 @@ public class InvertedIndexManager {
     private Path basePath = null;
     // Segment num
     private int numSegments = 0;
+    // Local document store
+    private DocumentStore documentStore = null;
     // Buffers
     private ByteBuffer wordsBuffer = null;
     private ByteBuffer listsBuffer = null;
@@ -94,8 +93,8 @@ public class InvertedIndexManager {
     /**
      * Get Document Store instance
      */
-    private DocumentStore getDocumentStore(int segumentNum) {
-        return MapdbDocStore.createOrOpen(this.basePath.resolve("store" + segumentNum).toString());
+    private DocumentStore getDocumentStore(int segmentNum) {
+        return MapdbDocStore.createOrOpen(this.basePath.resolve("store" + segmentNum).toString());
     }
 
     /**
@@ -105,13 +104,13 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
-        // Add to in-memory documents map
-        DocumentStore documentStore = this.getDocumentStore(this.numSegments);
+        if (this.documentStore == null) {
+            this.documentStore = this.getDocumentStore(this.numSegments);
+        }
         // Get new document ID
-        int newDocId = (int) documentStore.size();
+        int newDocId = (int) this.documentStore.size();
         // Add new document to store
-        documentStore.addDocument(newDocId, document);
-        documentStore.close();
+        this.documentStore.addDocument(newDocId, document);
 
         // Use Analyzer to extract words from a document
         List<String> words = this.analyzer.analyze(document.getText());
@@ -192,9 +191,11 @@ public class InvertedIndexManager {
     }
 
     private boolean isFlushValid() {
-        DocumentStore documentStore = this.getDocumentStore(this.numSegments);
-        long documentSize = documentStore.size();
-        documentStore.close();
+        if (this.documentStore == null) {
+            return false;
+        }
+        long documentSize = this.documentStore.size();
+        this.documentStore.close();
         return this.invertedLists.size() != 0 || documentSize != 0;
     }
 
@@ -228,7 +229,7 @@ public class InvertedIndexManager {
                     word.getBytes().length, // Word length
                     word,                   // Word
                     listsPageNum,           // Lists page num
-                    this.listsBufferOffset,             // List offset
+                    this.listsBufferOffset, // List offset
                     documentIds.size()      // List length
             );
             wordsPageNum = this.flushWord(wordsChannel, wordBlock, wordsPageNum);
@@ -238,6 +239,7 @@ public class InvertedIndexManager {
         this.wordsBuffer.putInt(0, this.wordsBuffer.position());
         wordsChannel.writePage(wordsPageNum, wordsBuffer);
         listsChannel.writePage(listsPageNum, listsBuffer);
+
         listsChannel.close();
         wordsChannel.close();
 
@@ -252,6 +254,12 @@ public class InvertedIndexManager {
 
         // Increment segment number
         this.numSegments += 1;
+
+        // Reopen document store
+        if (this.documentStore != null) {
+            this.documentStore.close();
+            this.documentStore = null;
+        }
     }
 
     /**
@@ -397,6 +405,7 @@ public class InvertedIndexManager {
             documentsForTest.put(id, documentStore.getDocument(id));
         }
 
+        documentStore.close();
         return documentsForTest;
     }
 

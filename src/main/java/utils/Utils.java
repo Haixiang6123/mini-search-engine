@@ -1,10 +1,13 @@
 package utils;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Utils {
     public static String stringifyHashMap(Map map) {
@@ -21,6 +24,7 @@ public class Utils {
     public static String stringifyList(List list) {
         return Arrays.asList(list).toString();
     }
+
     public static String stringifyMatrix(Object[][] matrix) {
         StringBuilder sb = new StringBuilder();
         for (Object[] row : matrix) {
@@ -45,5 +49,21 @@ public class Utils {
         }
 
         return bytesToString(tempBytes);
+    }
+
+    public static int countFiles(Path path) {
+        int fileCount = 0;
+        try {
+            File folder = path.toFile();
+            for (File fileList : Objects.requireNonNull(folder.listFiles())) {
+                if (fileList.isFile()) {
+                    fileCount++;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return fileCount;
     }
 }
