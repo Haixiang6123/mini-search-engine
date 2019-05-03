@@ -191,6 +191,11 @@ public class InvertedIndexManager {
      * flush() writes the segment to disk containing the posting list and the corresponding document store.
      */
     public void flush() {
+        // Check if it is empty memory
+        if (this.invertedLists.size() == 0) {
+            return;
+        }
+
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
         int wordsPageNum = 0;
