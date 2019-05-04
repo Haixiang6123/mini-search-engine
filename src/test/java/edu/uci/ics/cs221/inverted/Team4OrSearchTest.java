@@ -45,6 +45,7 @@ public class Team4OrSearchTest {
         manager.addDocument(doc2);
         manager.addDocument(doc3);
         manager.flush();
+        manager.getIndexSegment(0);
     }
 
     /**
@@ -105,7 +106,7 @@ public class Team4OrSearchTest {
     /**
      * Clean up the cache files
      */
-    @After
+//    @After
     public void after() {
         File indexFolder = new File(Paths.get(indexFolderName).toString());
         File teamFolder = new File(Paths.get(indexFolderName, teamFolderName).toString());
