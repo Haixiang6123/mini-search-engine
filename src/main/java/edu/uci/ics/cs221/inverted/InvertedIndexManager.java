@@ -286,87 +286,100 @@ public class InvertedIndexManager {
      * Merges all the disk segments of the inverted index pair-wise.
      */
     public void mergeAllSegments() {
-//        // merge only happens at even number of segments
-//        Preconditions.checkArgument(getNumSegments() % 2 == 0);
-//
-//        // New segment page num
-//        int wordsPageNum = 0;
-//        int listsPageNum = 0;
-//        int originListsPageNum = 0;
-//        int listsPageOffset = 0;
-//
-//        // Merge all segments
-//        for (int leftIndex = 0, rightIndex = 1; rightIndex < this.getNumSegments(); leftIndex++, rightIndex++) {
-//            // Rename current 2 segments
-//            this.renameBeforeMerge(leftIndex, rightIndex);
-//            // New segment channels
-//            PageFileChannel newSegWordsChannel = this.getSegmentChannel(leftIndex, "words");
-//            PageFileChannel newSegListsChannel = this.getSegmentChannel(leftIndex, "lists");
-//            // Original channels
-//            PageFileChannel leftSegWordsChannel = this.getSegmentChannel(leftIndex, "words_temp");
-//            PageFileChannel leftSegListsChannel = this.getSegmentChannel(leftIndex, "lists_temp");
-//            PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words_temp");
-//            PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists_temp");
-//
-//            // Get word blocks from left and right segment
-//            List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftSegWordsChannel, leftIndex);
-//            List<WordBlock> rightWordBlocks = this.getWordBlocksFromSegment(rightSegWordsChannel, rightIndex);
-//
-//            // Merge word blocks
-//            List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks);
-//
-//            // Document store
-//            this.mergeDocStores(leftIndex, rightIndex);
-//
-//            for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
-//                if (mergedWordBlock.isSingle) {
-//                    if (mergedWordBlock.leftWordBlock != null) {
-//                        WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
-//                        List<Integer> localInvertedList = this.getInvertedListFromSegment(
-//                                leftSegListsChannel,
-//                                leftWordBlock
-//                        );
-//
-//                        // Mark down current lists buffer offset and current list page num
-//                        listsPageOffset = flushListsBuffer.position();
-//                        originListsPageNum = listsPageNum;
-//
-//                        // Write inverted list to segment
-//                        listsPageNum = this.flushList(newSegListsChannel, this.mergeListsBuffer, localInvertedList, listsPageNum);
-//                        listsPageOffset = originListsPageNum == listsPageNum ? listsPageOffset : 0;
-//
-//                        // Update word block
-//                        leftWordBlock.listsPageNum = listsPageNum;
-//                        leftWordBlock.listOffset = listsPageOffset;
-//                        // Write word block to segment
-//                        wordsPageNum = this.flushWord(newSegWordsChannel, this.mergeWordsBuffer, leftWordBlock, wordsPageNum);
-//                    }
-//                    else {
-//                        WordBlock rightWordBlock = mergedWordBlock.rightWordBlock;
-//                        List<Integer> localInvertedList = this.getInvertedListFromSegment(
-//                                rightSegListsChannel,
-//                                rightWordBlock
-//                        );
-//                        // Mark down current lists buffer offset and current list page num
-//                        listsPageOffset = flushListsBuffer.position();
-//                        originListsPageNum = listsPageNum;
-//
-//                        // Write inverted list to segment
-//                        listsPageNum = this.flushList(newSegListsChannel, this.mergeListsBuffer, localInvertedList, listsPageNum);
-//                        listsPageOffset = originListsPageNum == listsPageNum ? listsPageOffset : 0;
-//
-//                        // Update word block
-//                        rightWordBlock.listsPageNum = listsPageNum;
-//                        rightWordBlock.listOffset = listsPageOffset;
-//                        // Write word block to segment
-//                        wordsPageNum = this.flushWord(newSegWordsChannel, this.mergeWordsBuffer, rightWordBlock, wordsPageNum);
-//                    }
-//                }
-//                else {
-//
-//                }
-//            }
-//        }
+        // merge only happens at even number of segments
+        Preconditions.checkArgument(getNumSegments() % 2 == 0);
+
+        // New segment page num
+        WriteMeta meta = new WriteMeta();
+
+        // Merge all segments
+        for (int leftIndex = 0, rightIndex = 1; rightIndex < this.getNumSegments(); leftIndex++, rightIndex++) {
+            // Rename current 2 segments
+            this.renameBeforeMerge(leftIndex, rightIndex);
+            // New segment channels
+            PageFileChannel newSegWordsChannel = this.getSegmentChannel(leftIndex, "words");
+            PageFileChannel newSegListsChannel = this.getSegmentChannel(leftIndex, "lists");
+            // Original channels
+            PageFileChannel leftSegWordsChannel = this.getSegmentChannel(leftIndex, "words_temp");
+            PageFileChannel leftSegListsChannel = this.getSegmentChannel(leftIndex, "lists_temp");
+            PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words_temp");
+            PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists_temp");
+
+            // Get word blocks from left and right segment
+            List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftSegWordsChannel, leftIndex);
+            List<WordBlock> rightWordBlocks = this.getWordBlocksFromSegment(rightSegWordsChannel, rightIndex);
+
+            // Merge word blocks
+            List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks);
+
+            // Document store
+            this.mergeDocStores(leftIndex, rightIndex);
+
+            for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
+                WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
+                WordBlock rightWordBlock = mergedWordBlock.rightWordBlock;
+                if (mergedWordBlock.isSingle) {
+                    if (leftWordBlock != null) {
+                        List<Integer> localInvertedList = this.getInvertedListFromSegment(
+                                leftSegListsChannel,
+                                leftWordBlock
+                        );
+
+                        // Mark down current lists buffer offset and current list page num
+                        meta.listsPageOffset = flushListsBuffer.position();
+
+                        // Write inverted list to segment
+                        this.flushList(newSegListsChannel, this.mergeListsBuffer, localInvertedList, meta);
+
+                        // Update word block
+                        leftWordBlock.listsPageNum = meta.listsPageNum;
+                        leftWordBlock.listOffset = meta.listsPageOffset;
+                        // Write word block to segment
+                        this.flushWord(newSegWordsChannel, this.mergeWordsBuffer, leftWordBlock, meta);
+                    }
+                    else {
+                        List<Integer> localInvertedList = this.getInvertedListFromSegment(
+                                rightSegListsChannel,
+                                rightWordBlock
+                        );
+                        // Mark down current lists buffer offset and current list page num
+                        meta.listsPageOffset = flushListsBuffer.position();
+
+                        // Write inverted list to segment
+                        this.flushList(newSegListsChannel, this.mergeListsBuffer, localInvertedList, meta);
+
+                        // Update word block
+                        rightWordBlock.listsPageNum = meta.listsPageNum;
+                        rightWordBlock.listOffset = meta.listsPageOffset;
+                        // Write word block to segment
+                        this.flushWord(newSegWordsChannel, this.mergeWordsBuffer, rightWordBlock, meta);
+                    }
+                }
+                else {
+                    List<Integer> localInvertedList = new ArrayList<>();
+                    localInvertedList.addAll(this.getInvertedListFromSegment(
+                            leftSegListsChannel,
+                            leftWordBlock
+                    ));
+                    localInvertedList.addAll(this.getInvertedListFromSegment(
+                            rightSegListsChannel,
+                            rightWordBlock
+                    ));
+
+                    // Mark down current lists buffer offset and current list page num
+                    meta.listsPageOffset = flushListsBuffer.position();
+
+                    // Write inverted list to segment
+                    this.flushList(newSegListsChannel, this.mergeListsBuffer, localInvertedList, meta);
+
+                    // Update word block
+                    rightWordBlock.listsPageNum = meta.listsPageNum;
+                    rightWordBlock.listOffset = meta.listsPageOffset;
+                    // Write word block to segment
+                    this.flushWord(newSegWordsChannel, this.mergeWordsBuffer, rightWordBlock, meta);
+                }
+            }
+        }
     }
 
     /**
