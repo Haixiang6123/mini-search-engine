@@ -250,6 +250,14 @@ public class InvertedIndexManager {
         listsChannel.close();
         wordsChannel.close();
 
+        // Reset Buffers
+        this.resetBuffers();
+
+        // Increment segment number
+        this.numSegments += 1;
+    }
+
+    private void resetBuffers() {
         // Reset buffers
         this.listsBuffer.clear();
         this.wordsBuffer.clear();
@@ -259,8 +267,8 @@ public class InvertedIndexManager {
         // Reset inverted lists
         this.invertedLists.clear();
 
-        // Increment segment number
-        this.numSegments += 1;
+        // Reset lists offset
+        this.listsBufferOffset = 0;
     }
 
     /**
