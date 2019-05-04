@@ -293,7 +293,7 @@ public class InvertedIndexManager {
                 break;
             }else{
                 //read wordlist
-                pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
+                PageFileChannel pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
                 ByteBuffer page = pageFileChannel.readPage(0);  // read metadata
                 int numWordPages = page.getInt();   //number of pages that storing words
                 //todo: read wordlists
@@ -378,7 +378,7 @@ public class InvertedIndexManager {
                 break;
             }else{
                 //read wordlist
-                pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
+                PageFileChannel pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
                 ByteBuffer page = pageFileChannel.readPage(0);  // read metadata
                 int numWordPages = page.getInt();   //number of pages that storing words
                 //todo: read wordlists
@@ -386,7 +386,7 @@ public class InvertedIndexManager {
                 for(byte[] wdata : words)
                 {
                     byte[] word = Arrays.copyOfRange(wdata,0, 20);   //get word
-                    if (keyword.equals(new String( word, StandardCharsets.UTF_8 ))){
+                    if (keywords.get(0).equals(new String( word, StandardCharsets.UTF_8 ))){
                         int offset = ByteBuffer.wrap(Arrays.copyOfRange(wdata,20,24)).getInt();
                         int length = ByteBuffer.wrap(Arrays.copyOfRange(wdata,24,28)).getInt();
                         //todo: read the wordlist
@@ -405,7 +405,7 @@ public class InvertedIndexManager {
         return doc.iterator();
 
 
-        throw new UnsupportedOperationException();
+        //throw new UnsupportedOperationException();
     }
 
     /**
