@@ -269,7 +269,49 @@ public class InvertedIndexManager {
     public void mergeAllSegments() {
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
-        throw new UnsupportedOperationException();
+        // Merge all segments
+        for (int segmentIndex = 0; segmentIndex < this.getNumSegments(); segmentIndex += 2) {
+            // Read words
+            PageFileChannel leftFileChannel = this.getSegmentChannel(segmentIndex, "words");
+            PageFileChannel rightFileChannel = this.getSegmentChannel(segmentIndex + 1, "words");
+
+            List<WordBlock> leftWordBlocks = this.getWordBlocks(leftFileChannel);
+            List<WordBlock> rightWordBlocks = this.getWordBlocks(rightFileChannel);
+
+            List<WordBlock> intersectWordBlocks = Utils.intersectLists(leftWordBlocks, rightWordBlocks);
+            List<WordBlock> allWordBlocks = Utils.unionLists(leftWordBlocks, rightWordBlocks);
+        }
+    }
+
+    /**
+     * Get all wordBlocks from a channel
+     * @param wordsFileChannel
+     * @return
+     */
+    private List<WordBlock> getWordBlocks(PageFileChannel wordsFileChannel) {
+        List<WordBlock> wordBlocks = new ArrayList<>();
+        // Get page num
+        int pagesNum = wordsFileChannel.getNumPages();
+        // Iterate all pages
+        for (int page = 0; page < pagesNum; page++) {
+            // Get a byte buffer by given page
+            ByteBuffer wordsBlock = wordsFileChannel.readPage(page);
+            // Get whole size
+            int pageSize = wordsBlock.getInt();
+            while (wordsBlock.position() < pageSize) {
+                int wordLength = wordsBlock.getInt();
+                WordBlock wordBlock = new WordBlock(
+                    wordLength, // Word length
+                    Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength), // Word
+                    wordsBuffer.getInt(), // Lists page num
+                    wordsBlock.getInt(),  // List offset
+                    wordsBlock.getInt()   // List length
+                );
+                wordBlocks.add(wordBlock);
+            }
+        }
+
+        return wordBlocks;
     }
 
     /**
