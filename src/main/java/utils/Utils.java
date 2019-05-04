@@ -86,4 +86,11 @@ public class Utils {
 
         return new ArrayList<T>(set);
     }
+
+    public static void renameSegment(Path basePath, int segmentIndex, String originName, String newName) {
+        File file = basePath.resolve("segment" + segmentIndex + "_" + originName).toFile();
+        File tempFile = basePath.resolve("segment" + segmentIndex + "_" + newName).toFile();
+
+        file.renameTo(tempFile);
+    }
 }

@@ -24,7 +24,7 @@ public class Team4OrSearchTest {
     private Document doc2 = new Document("apple dog");
     private Document doc3 = new Document("cat smile");
     private String indexFolderName = "index";
-    private String teamFolderName = "Team4OrSearchTest";
+    private String teamFolderName = "Team18FlushTest";
 
     @Before
     public void before() {
@@ -41,11 +41,7 @@ public class Team4OrSearchTest {
 
     @Test
     public void test0() {
-        manager.addDocument(doc1);
-        manager.addDocument(doc2);
-        manager.addDocument(doc3);
-        manager.flush();
-        manager.getIndexSegment(0);
+        manager.mergeAllSegments();
     }
 
     /**

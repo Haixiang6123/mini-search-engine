@@ -278,13 +278,16 @@ public class InvertedIndexManager {
      * Merges all the disk segments of the inverted index pair-wise.
      */
     public void mergeAllSegments() {
+        // Rename segments
+        Utils.renameSegment(this.basePath, 0, "lists", "lists_temp");
+
         // merge only happens at even number of segments
         Preconditions.checkArgument(getNumSegments() % 2 == 0);
         // Merge all segments
         for (int segmentIndex = 0; segmentIndex < this.getNumSegments(); segmentIndex += 2) {
             // Read words
-            PageFileChannel leftFileChannel = this.getSegmentChannel(segmentIndex, "words");
-            PageFileChannel rightFileChannel = this.getSegmentChannel(segmentIndex + 1, "words");
+            PageFileChannel leftFileChannel = this.getSegmentChannel(segmentIndex, "words_temp");
+            PageFileChannel rightFileChannel = this.getSegmentChannel(segmentIndex + 1, "words_temp");
 
             List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftFileChannel, segmentIndex);
             List<WordBlock> rightWordBlocks = this.getWordBlocksFromSegment(rightFileChannel, segmentIndex + 1);
