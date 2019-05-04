@@ -257,6 +257,9 @@ public class InvertedIndexManager {
         this.numSegments += 1;
     }
 
+    /**
+     * Reset buffer before writing texts in segment
+     */
     private void resetBuffers() {
         // Reset buffers
         this.listsBuffer.clear();
@@ -283,11 +286,24 @@ public class InvertedIndexManager {
             PageFileChannel leftFileChannel = this.getSegmentChannel(segmentIndex, "words");
             PageFileChannel rightFileChannel = this.getSegmentChannel(segmentIndex + 1, "words");
 
-            List<WordBlock> leftWordBlocks = this.getWordBlocks(leftFileChannel);
-            List<WordBlock> rightWordBlocks = this.getWordBlocks(rightFileChannel);
+            List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftFileChannel, segmentIndex);
+            List<WordBlock> rightWordBlocks = this.getWordBlocksFromSegment(rightFileChannel, segmentIndex + 1);
 
             List<WordBlock> intersectWordBlocks = Utils.intersectLists(leftWordBlocks, rightWordBlocks);
-            List<WordBlock> allWordBlocks = Utils.unionLists(leftWordBlocks, rightWordBlocks);
+            List<WordBlock> unionWordBlocks = Utils.unionLists(leftWordBlocks, rightWordBlocks);
+
+            for (WordBlock wordBlock : unionWordBlocks) {
+                // Check if this word block is not in intersection
+                if (!intersectWordBlocks.contains(wordBlock)) {
+                    List<Integer> invertedList = this.getInvertedListFromSegment(
+                            wordBlock.segmentIndex == segmentIndex ? leftFileChannel : rightFileChannel,
+                            wordBlock
+                    );
+                }
+                else {
+                    // Merge list
+                }
+            }
         }
     }
 
@@ -296,30 +312,47 @@ public class InvertedIndexManager {
      * @param wordsFileChannel
      * @return
      */
-    private List<WordBlock> getWordBlocks(PageFileChannel wordsFileChannel) {
+    private List<WordBlock> getWordBlocksFromSegment(PageFileChannel wordsFileChannel, int segmentIndex) {
         List<WordBlock> wordBlocks = new ArrayList<>();
         // Get page num
         int pagesNum = wordsFileChannel.getNumPages();
         // Iterate all pages
         for (int page = 0; page < pagesNum; page++) {
             // Get a byte buffer by given page
-            ByteBuffer wordsBlock = wordsFileChannel.readPage(page);
+            ByteBuffer wordsBuffer = wordsFileChannel.readPage(page);
             // Get whole size
-            int pageSize = wordsBlock.getInt();
-            while (wordsBlock.position() < pageSize) {
-                int wordLength = wordsBlock.getInt();
+            int pageSize = wordsBuffer.getInt();
+            while (wordsBuffer.position() < pageSize) {
+                int wordLength = wordsBuffer.getInt();
                 WordBlock wordBlock = new WordBlock(
                     wordLength, // Word length
                     Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength), // Word
                     wordsBuffer.getInt(), // Lists page num
-                    wordsBlock.getInt(),  // List offset
-                    wordsBlock.getInt()   // List length
+                    wordsBuffer.getInt(),  // List offset
+                    wordsBuffer.getInt()   // List length
                 );
+                wordBlock.segmentIndex = segmentIndex;
                 wordBlocks.add(wordBlock);
             }
         }
 
         return wordBlocks;
+    }
+
+    /**
+     * Get inverted list from segment
+     */
+    private List<Integer> getInvertedListFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
+        List<Integer> invertedList = new ArrayList<>();
+        // Get byte buffer
+        ByteBuffer listsByteBuffer = listsFileChannel.readPage(wordBlock.listsPageNum);
+        // Move pointer to the offset
+        listsByteBuffer.position(wordBlock.listOffset);
+        // Extract the inverted list
+        for (int i = 0; i < wordBlock.listLength; i++) {
+            invertedList.add(listsByteBuffer.getInt());
+        }
+        return invertedList;
     }
 
     /**
@@ -527,7 +560,7 @@ public class InvertedIndexManager {
         PageFileChannel listsFileChannel = this.getSegmentChannel(segmentNum, "lists");
         PageFileChannel wordsFileChannel = this.getSegmentChannel(segmentNum, "words");
 
-        Map<String, List<Integer>> invertedListsForTest = this.getInvertedListsForTest(listsFileChannel, wordsFileChannel);
+        Map<String, List<Integer>> invertedListsForTest = this.getInvertedListsForTest(listsFileChannel, wordsFileChannel, segmentNum);
         Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
 
         return documentsForTest.size() != 0 ?
@@ -537,32 +570,14 @@ public class InvertedIndexManager {
     /**
      * Get inverted lists from segment
      */
-    private Map<String, List<Integer>> getInvertedListsForTest(PageFileChannel listsFileChannel, PageFileChannel wordsFileChannel) {
-        // Get total page num of words
-        int wordsPagesNum = wordsFileChannel.getNumPages();
-
+    private Map<String, List<Integer>> getInvertedListsForTest(PageFileChannel listsFileChannel, PageFileChannel wordsFileChannel, int segmentNum) {
         Map<String, List<Integer>> invertedListsForTest = new HashMap<>();
 
-        for (int wordsPage = 0; wordsPage < wordsPagesNum; wordsPage++) {
-            // Get byte buffer of this page
-            ByteBuffer wordsPageBuffer = wordsFileChannel.readPage(wordsPage);
-            // Get size of this page
-            int wordsPageSize = wordsPageBuffer.getInt();
-            while (wordsPageBuffer.position() < wordsPageSize) {
-                // Read word length
-                int wordLength = wordsPageBuffer.getInt();
+        List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
 
-                WordBlock wordBlock = new WordBlock(
-                        wordLength, // Word length
-                        Utils.sliceStringFromBuffer(wordsPageBuffer, wordsPageBuffer.position(), wordLength), // Word
-                        wordsPageBuffer.getInt(), // Lists page num
-                        wordsPageBuffer.getInt(), // List offset
-                        wordsPageBuffer.getInt()  // List length
-                );
-
-                // Update inverted lists
-                this.updateInvertedListsForTest(wordBlock, invertedListsForTest, listsFileChannel);
-            }
+        for (WordBlock wordBlock : wordBlocks) {
+            List<Integer> invertedList = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
+            invertedListsForTest.put(wordBlock.word, invertedList);
         }
 
         return invertedListsForTest;
@@ -582,23 +597,5 @@ public class InvertedIndexManager {
 
         documentStore.close();
         return documentsForTest;
-    }
-
-    /**
-     * Parse word block
-     */
-    private void updateInvertedListsForTest(WordBlock wordBlock, Map<String, List<Integer>> invertedListsForTest, PageFileChannel listsFileChannel) {
-        List<Integer> invertedList = new ArrayList<>();
-
-        // Setup reading buffer
-        listsBuffer = listsFileChannel.readPage(wordBlock.listsPageNum);
-        listsBuffer.position(wordBlock.listOffset);
-
-        // Read document IDs
-        for (int i = 0; i < wordBlock.listLength; i++) {
-            invertedList.add(listsBuffer.getInt());
-        }
-
-        invertedListsForTest.put(wordBlock.word, invertedList);
     }
 }

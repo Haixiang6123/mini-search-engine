@@ -7,6 +7,8 @@ public class WordBlock {
     public int listOffset = 0;
     public int listLength = 0;
 
+    public int segmentIndex = 0;
+
     public WordBlock(int wordLength, String word, int listsPageNum, int listOffset, int listLength) {
         this.wordLength = wordLength;
         this.word = word;
