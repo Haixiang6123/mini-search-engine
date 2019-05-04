@@ -1,5 +1,8 @@
 package utils;
 
+import edu.uci.ics.cs221.inverted.MergedWordBlock;
+import edu.uci.ics.cs221.inverted.WordBlock;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +67,40 @@ public class Utils {
         return fileCount;
     }
 
+    public static List<MergedWordBlock> mergeWordBlocks(List<WordBlock> list1, List<WordBlock> list2) {
+        List<MergedWordBlock> newList = new ArrayList<>();
+        for (WordBlock wordBlock1 : list1) {
+            MergedWordBlock mergedWordBlock = new MergedWordBlock(true);
+            mergedWordBlock.leftWordBlock = wordBlock1;
+
+            for (WordBlock wordBlock2 : list2) {
+                if (wordBlock1.word.equals(wordBlock2.word)) {
+                    mergedWordBlock.isSingle = false;
+                    mergedWordBlock.rightWordBlock = wordBlock2;
+                    break;
+                }
+            }
+            newList.add(mergedWordBlock);
+        }
+
+        for (WordBlock wordBlock2 : list2) {
+            boolean found = false;
+            for (WordBlock wordBlock1 : list1) {
+                if (wordBlock2.word.equals(wordBlock1.word)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                MergedWordBlock mergedWordBlock = new MergedWordBlock(true);
+                mergedWordBlock.rightWordBlock = wordBlock2;
+                newList.add(mergedWordBlock);
+            }
+        }
+
+        return newList;
+    }
+
 
     public static <T> List<T> intersectLists(List<T> list1, List<T> list2) {
         List<T> list = new ArrayList<T>();
@@ -90,6 +127,13 @@ public class Utils {
     public static void renameSegment(Path basePath, int segmentIndex, String originName, String newName) {
         File file = basePath.resolve("segment" + segmentIndex + "_" + originName).toFile();
         File tempFile = basePath.resolve("segment" + segmentIndex + "_" + newName).toFile();
+
+        file.renameTo(tempFile);
+    }
+
+    public static void renameStore(Path basePath, int segmentIndex, String newName) {
+        File file = basePath.resolve("store" + segmentIndex).toFile();
+        File tempFile = basePath.resolve("store" + segmentIndex + "_" + newName).toFile();
 
         file.renameTo(tempFile);
     }
