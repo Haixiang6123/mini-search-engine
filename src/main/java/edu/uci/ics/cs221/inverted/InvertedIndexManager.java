@@ -362,7 +362,7 @@ public class InvertedIndexManager {
 
             // Close channels
             newSegListsChannel.close();
-            newSegListsChannel.close();
+            newSegWordsChannel.close();
             leftSegListsChannel.close();
             leftSegWordsChannel.close();
             rightSegListsChannel.close();
