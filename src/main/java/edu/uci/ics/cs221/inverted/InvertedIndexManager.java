@@ -143,8 +143,8 @@ public class InvertedIndexManager {
     /**
      * Flush a list
      */
-    private void flushList(PageFileChannel listsChannel, ByteBuffer listsBuffer, List<Integer> documentIds, WriteMeta meta) {
-        for (Integer id : documentIds) {
+    private void flushList(PageFileChannel listsChannel, ByteBuffer listsBuffer, List<Integer> invertedList, WriteMeta meta) {
+        for (Integer id : invertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
                 // Write it to segment
                 listsChannel.writePage(meta.listsPageNum, listsBuffer);
@@ -349,9 +349,6 @@ public class InvertedIndexManager {
                             meta);
                 }
 
-                // Rename current 2 segments
-                Utils.renameSegment(this.basePath, newIndex, "words_new", "words");
-                Utils.renameSegment(this.basePath, newIndex, "lists_new", "lists");
             }
 
             // Write remaining content from buffer
@@ -359,19 +356,28 @@ public class InvertedIndexManager {
             newSegWordsChannel.writePage(meta.wordsPageNum, this.mergeWordsBuffer);
             newSegListsChannel.writePage(meta.listsPageNum, this.mergeListsBuffer);
 
+            // Close channels
             newSegListsChannel.close();
             newSegListsChannel.close();
+            leftSegListsChannel.close();
+            leftSegWordsChannel.close();
+            rightSegListsChannel.close();
+            rightSegWordsChannel.close();
+
+            // Delete origin files
+            (new File(this.basePath.resolve("segment" + leftIndex + "_words").toString())).delete();
+            (new File(this.basePath.resolve("segment" + leftIndex + "_lists").toString())).delete();
+            (new File(this.basePath.resolve("segment" + rightIndex + "_words").toString())).delete();
+            (new File(this.basePath.resolve("segment" + rightIndex + "_lists").toString())).delete();
+            // Rename current 2 segments
+            Utils.renameSegment(this.basePath, newIndex, "words_new", "words");
+            Utils.renameSegment(this.basePath, newIndex, "lists_new", "lists");
 
             // Reset buffers
             this.resetMergeBuffers();
         }
 
         this.numSegments = this.numSegments / 2;
-
-        // Merge if segment num is still larger than threshold
-        if (this.getNumSegments() >= DEFAULT_MERGE_THRESHOLD) {
-            this.mergeAllSegments();
-        }
     }
 
     /**
