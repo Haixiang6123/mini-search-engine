@@ -236,7 +236,7 @@ public class Team22FlushTest {
     // check if read/writer counter updated properly
     // we check whether the pages take the space at least the length of the keywords
 
-//    @Test
+    @Test
     public void checkPageIOTest(){
         Tokenizer tokenizer = new PunctuationTokenizer();
         Stemmer stemmer = new PorterStemmer();
