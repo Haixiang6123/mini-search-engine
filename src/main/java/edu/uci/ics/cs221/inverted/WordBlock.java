@@ -32,4 +32,16 @@ public class WordBlock {
                 "ListOffset: " + this.listOffset + "; " +
                 "ListLength: " + this.listLength + "; ";
     }
+
+    public boolean equals(Object object){
+        if (object == this) {
+            return true;
+        }
+
+        if (!(object instanceof WordBlock)) {
+            return false;
+        }
+        WordBlock wordBlock = (WordBlock) object;
+        return this.word.equals(wordBlock.word);
+    }
 }

@@ -130,8 +130,9 @@ public class InvertedIndexManager {
                 // Create a new list
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
             } else {
-                // Add to exist list
-                documentIds.add(newDocId);
+                // Add to exist list    // todo: handle repeated word in same file; make sure a file will be recorded only once
+                if(!documentIds.contains(newDocId))
+                    documentIds.add(newDocId);
             }
         }
 
@@ -447,7 +448,7 @@ public class InvertedIndexManager {
     private List<WordBlock> filterWordBlock(List<WordBlock> wordBlocks, List<String> wordList) {
         List<WordBlock> results = new ArrayList<>();
         for (WordBlock wordBlock : wordBlocks) {
-            if (wordList.contains(wordBlock.word)) {
+            if (wordList.contains(wordBlock.word)) { //&& !results.contains(wordBlock)
                 results.add(wordBlock);
             }
         }

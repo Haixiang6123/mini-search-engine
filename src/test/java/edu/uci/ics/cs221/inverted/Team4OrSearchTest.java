@@ -3,6 +3,7 @@ package edu.uci.ics.cs221.inverted;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
 import edu.uci.ics.cs221.storage.Document;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -101,7 +102,7 @@ public class Team4OrSearchTest {
     /**
      * Clean up the cache files
      */
-//    @After
+    @After
     public void after() {
         File indexFolder = new File(Paths.get(indexFolderName).toString());
         File teamFolder = new File(Paths.get(indexFolderName, teamFolderName).toString());
