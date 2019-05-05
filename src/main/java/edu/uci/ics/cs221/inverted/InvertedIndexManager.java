@@ -5,6 +5,7 @@ import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
+import org.apache.lucene.util.ArrayUtil;
 import utils.Utils;
 
 import java.io.File;
@@ -55,6 +56,8 @@ public class InvertedIndexManager {
     // Merge variables
     private ByteBuffer mergeWordsBuffer = null;
     private ByteBuffer mergeListsBuffer = null;
+    //in memory documents
+    private Map<Integer,Document> inMemDocs = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -113,7 +116,7 @@ public class InvertedIndexManager {
      */
     public void addDocument(Document document) {
         if (this.documentStore == null) {
-            this.documentStore = this.getDocumentStore(this.numSegments, "");
+            this.documentStore = this.getDocumentStore(this.numSegments, ""); //todo shall we create it upon flush?
         }
         // Get new document ID
         int newDocId = (int) this.documentStore.size();
@@ -503,82 +506,77 @@ public class InvertedIndexManager {
      * @return a iterator of documents matching the query
      */
     public Iterator<Document> searchQuery(String keyword) {
-
         Preconditions.checkNotNull(keyword);
         ArrayList<Document> doc = new ArrayList<>();
-        DocumentStore ds = MapdbDocStore.createOrOpen("docDB");
+        //1. stemming the keyword
+        List<String> keywords = this.analyzer.analyze(keyword);
+        if( keywords == null || keywords.size() == 0 || keywords.get(0).equals(""))
+            return doc.iterator();
+
+        keyword = keywords.get(0);
+
         int i = 0;
         while(true)   //traverse all segments
         {
-            if(!Files.exists(basePath.resolve("segment" + i)))  //todo: is the number consecutive? or will have condition like(1,3,4)
-            {
+            if(!Files.exists(basePath.resolve("segment" + i +"_words"))) { // the numbers are consecutive thus could stop when i cannot be accessed
                 break;
             }else{
-                //read wordlist
-                PageFileChannel pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
-                ByteBuffer page = pageFileChannel.readPage(0);  // read metadata
-                int numWordPages = page.getInt();   //number of pages that storing words
-                //todo: read wordlists
-                ArrayList<byte[]> words = new ArrayList<>();
-                for(byte[] wdata : words)
+
+                DocumentStore ds = getDocumentStore(i,"");
+
+                //read wordlists  todo: stop upon the target word found
+                PageFileChannel wordsChannel = getSegmentChannel(i,"words");
+                int numWordPages = wordsChannel.getNumPages();   //number of pages of words
+                ArrayList<WordBlock> words = new ArrayList<>();
+
+                for (int p = 0; p < numWordPages; p++)
                 {
-                    byte[] word = Arrays.copyOfRange(wdata,0, 20);   //get word
-                    if (keyword.equals(new String( word, StandardCharsets.UTF_8 ))){
-                        int offset = ByteBuffer.wrap(Arrays.copyOfRange(wdata,20,24)).getInt();
-                        int length = ByteBuffer.wrap(Arrays.copyOfRange(wdata,24,28)).getInt();
-                        //todo: read the wordlist
-                        int[] postlist = new int[]{1,2};
-                        for(Integer docId : postlist)
-                        {
-                            //todo: get knowledge of docFile path
-                            doc.add(ds.getDocument(docId));
-                        }
+                    ByteBuffer page = wordsChannel.readPage(p);
+                    int end = page.getInt();
+
+                    while(page.position() < end){
+                        //read word block
+                        int wordLength = page.getInt();
+                        WordBlock wb = new WordBlock(
+                                wordLength,
+                                Utils.sliceStringFromBuffer(page, page.position(), wordLength),
+                                page.getInt(),
+                                page.getInt(),
+                                page.getInt());
+                        words.add(wb);
                     }
                 }
+
+                wordsChannel.close();
+
+                PageFileChannel listChannel = getSegmentChannel(i, "lists");
+                for(WordBlock wdata : words)   //search the word sequentially
+                {
+                    if (keyword.equals(wdata.word)){
+                        //read posting list from file
+                        ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
+                        //store docID
+                        int[] postList = new int[wdata.listLength];
+                        listPage.position(wdata.listOffset);
+                        for(int l = 0; l < wdata.listLength; l++)
+                            postList[l] = listPage.getInt();
+
+                        for(int docId : postList)
+                        {
+                            doc.add(ds.getDocument(docId));
+                            System.out.println("segment : " + i + "docId:" + docId + ds.getDocument(docId).getText());
+                        }
+                        break;   //break if the word is found
+                    }
+                }
+                listChannel.close();
+                ds.close();
             }
+            i++;
         }
 
-        ds.close();
-       return doc.iterator();
+        return doc.iterator();  //todo iterator for docStore?
 
-       /*   used for disk iterating
-        Iterator<Document> it = new Iterator<Document>() {
-
-
-            private int curSegment = 0;
-            private int[] curPostList = null;
-            private int curListIndex = 0;
-            private String key = keyword;
-            DocumentStore ds = MapdbDocStore.createOrOpen("docDB");
-
-            @Override
-            public boolean hasNext() {
-                //     current index hasn't run out of boundary OR we have next segment to read
-                if (curListIndex > curPostList.length||!Files.exists(basePath.resolve("segment" +i))
-                        ds.close();  //close database
-                return curListIndex < curPostList.length || Files.exists(basePath.resolve("segment" + i));
-            }
-
-            @Override
-            public Document next() {
-                //return arrayList[currentIndex++];
-                if(curListIndex < curPostList.length)
-                    return ds.getDocument(curPostList[curListIndex]);
-                else{
-                    return null;
-                }
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
-
-        return it;
-
-        */
-        //throw new UnsupportedOperationException();
     }
 
     /**
@@ -591,43 +589,115 @@ public class InvertedIndexManager {
         Preconditions.checkNotNull(keywords);
 
         ArrayList<Document> doc = new ArrayList<>();
-        DocumentStore ds = MapdbDocStore.createOrOpen("docDB");
+        //analyze key words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for( String k : keywords) {
+            List<String> ana = this.analyzer.analyze(k);
+            if (ana != null && ana.size() > 0 && !ana.get(0).equals(""))  // not empty string
+                analyzed.add(ana.get(0));
+            else                      // and "" -> no result
+                return doc.iterator();
+        }
+
+
         int i = 0;
         while(true)   //traverse all segments
         {
-            if(!Files.exists(basePath.resolve("segment" + i)))  //todo: is the number consecutive? or will have condition like(1,3,4)
+            if(!Files.exists(basePath.resolve("segment" + i +"_words")))
             {
                 break;
             }else{
-                //read wordlist
-                PageFileChannel pageFileChannel = PageFileChannel.createOrOpen(basePath.resolve("segment" + i));
-                ByteBuffer page = pageFileChannel.readPage(0);  // read metadata
-                int numWordPages = page.getInt();   //number of pages that storing words
-                //todo: read wordlists
-                ArrayList<byte[]> words = new ArrayList<>();
-                for(byte[] wdata : words)
+                //open docDB for this segment
+                DocumentStore ds = this.getDocumentStore(i, "");
+
+                //read wordlist: only read those in anaylized lists
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
+                int numWordPages = wordsChannel.getNumPages();   //number of pages of words
+                ArrayList<WordBlock> words = new ArrayList<>();
+
+                for (int p = 0; p < numWordPages; p++)
                 {
-                    byte[] word = Arrays.copyOfRange(wdata,0, 20);   //get word
-                    if (keywords.get(0).equals(new String( word, StandardCharsets.UTF_8 ))){
-                        int offset = ByteBuffer.wrap(Arrays.copyOfRange(wdata,20,24)).getInt();
-                        int length = ByteBuffer.wrap(Arrays.copyOfRange(wdata,24,28)).getInt();
-                        //todo: read the wordlist
-                        int[] postlist = new int[]{1,2};
-                        for(Integer docId : postlist)
-                        {
-                            //todo: get knowledge of docFile path
-                            doc.add(ds.getDocument(docId));
+                    ByteBuffer page = wordsChannel.readPage(p);
+                    int end = page.getInt();
+
+                    while(page.position() < end){
+                        //read word block
+                        int wordLength = page.getInt();
+                        String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
+                        if(analyzed.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
+                            WordBlock wb = new WordBlock(
+                                    wordLength,
+                                    word,
+                                    page.getInt(),
+                                    page.getInt(),
+                                    page.getInt());
+                            //add the word in search query
+                            words.add(wb);
                         }
                     }
                 }
+
+                wordsChannel.close();
+
+                if(words.size() != analyzed.size())   // And query exists some words not in this segment; todo better checking method
+                    continue;
+
+                //retrive the lists and merge with basic
+                ArrayList<Integer> intersection = null;
+                //sort the words' list ; merge the list from short list to longer list
+                words.sort(new Comparator<WordBlock>() {
+                               @Override
+                               public int compare(WordBlock o1, WordBlock o2) {
+                                   return o1.listLength - o2.listLength;
+                               }
+                           });
+
+                PageFileChannel listChannel = getSegmentChannel(i, "lists");
+                for(WordBlock wdata : words)
+                {
+                    //read posting list from file
+                    ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
+                    //store docID
+                    Integer[] postList = new Integer[wdata.listLength];
+                    listPage.position(wdata.listOffset);
+                    for(int l = 0; l < wdata.listLength; l++)
+                        postList[l] = listPage.getInt();
+
+                    if(intersection == null) {
+                        intersection = new ArrayList<>(Arrays.asList(postList));
+                    }else{
+                        //find intersection:  by binary search
+                        ArrayList<Integer> temp = new ArrayList<>();
+                        int lowbound = 0;   //lowerbound for list being searched; the ids are sorted in posting list
+                        for(Integer target : intersection){
+                            int l = lowbound, r = wdata.listLength - 1;
+                            while (l < r){
+                                int mid = (l + r)/2;
+                                if( postList[mid].compareTo(target) < 0 )   //Integer comparation
+                                    l = mid + 1;
+                                else    //postList[mid] >= target
+                                    r = mid;
+                            }
+                            if(postList[r].compareTo(target) == 0)    //equals: add the number to new arraylist
+                            {
+                                temp.add(target);
+                                lowbound = r + 1;   //raise the search range's lower bound
+                            }
+                        }
+                    }
+                }
+                listChannel.close();
+                //read doc
+                for(int docId : intersection)
+                {
+                    doc.add(ds.getDocument(docId));
+                }
+                ds.close();
             }
+            i++;
         }
 
-        ds.close();
         return doc.iterator();
-
-
-        //throw new UnsupportedOperationException();
     }
 
     /**
@@ -639,21 +709,85 @@ public class InvertedIndexManager {
     public Iterator<Document> searchOrQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
-        List<Document> result = new ArrayList<>();
-        while(true)        //todo: condition -- search for existing segments
-        {
-            //1. read word list of segment
-
-            //2. get length of each word's wordlist
-
-            //3. loop: for each word, get the wordlist from disk, then OR the list (idx) with current list.
-
-            //4. retrieve the documents to List<Document>
-            break;
+        List<Document> doc = new ArrayList<>();
+        //analyze key words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for( String k : keywords) {
+            List<String> ana = this.analyzer.analyze(k);
+            if (ana != null && ana.size() > 0 && !ana.get(0).equals(""))  // not empty string  //todo can't filter ""
+                analyzed.add(ana.get(0));
+            else                      // and "" -> no result
+                return doc.iterator();
         }
 
-        //todo: how to return iterator that could access disk upon request ?
-        throw new UnsupportedOperationException();
+
+        int i = 0;
+        while(true)
+        {
+            if(!Files.exists(basePath.resolve("segment" + i +"_words")))
+            {
+                break;
+            }else{
+                //open docDB for this segment
+                DocumentStore ds = this.getDocumentStore(i, "");
+
+                //1. read word list of segment
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
+                int numWordPages = wordsChannel.getNumPages();   //number of pages of words
+                ArrayList<WordBlock> words = new ArrayList<>();
+
+                for (int p = 0; p < numWordPages; p++)
+                {
+                    ByteBuffer page = wordsChannel.readPage(p);
+                    int end = page.getInt();
+
+                    while(page.position() < end){
+                        //read word block
+                        int wordLength = page.getInt();
+                        String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
+                        if(analyzed.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
+                            WordBlock wb = new WordBlock(
+                                    wordLength,
+                                    word,
+                                    page.getInt(),
+                                    page.getInt(),
+                                    page.getInt());
+                            //add the word in search query
+                            words.add(wb);
+                        }
+                    }
+                }
+
+                wordsChannel.close();
+
+                //retrive the lists and merge with basic
+                TreeSet<Integer> union = new TreeSet<>();
+                PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
+                for(WordBlock wdata : words)   //search the word sequentially
+                {
+                    //read posting list from file
+                    ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
+                    //store docID
+                    Integer[] postList = new Integer[wdata.listLength];
+                    listPage.position(wdata.listOffset);
+                    for(int l = 0; l < wdata.listLength; l++)
+                        postList[l] = listPage.getInt();
+
+                    //use set to do union todo: optimiaze the way of doing OR
+                    union.addAll(Arrays.asList(postList));
+
+                }
+                listChannel.close();
+                //retrieve the documents to List<Document>
+                for(int docId : union)
+                {
+                    doc.add(ds.getDocument(docId));
+                }
+                ds.close();
+            }
+            i++;
+        }
+        return doc.iterator();
     }
 
     /**
@@ -701,6 +835,9 @@ public class InvertedIndexManager {
 
         Map<String, List<Integer>> invertedListsForTest = this.getInvertedListsForTest(listsFileChannel, wordsFileChannel, segmentNum);
         Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
+
+        listsFileChannel.close();
+        wordsFileChannel.close();
 
         return documentsForTest.size() != 0 ?
                 new InvertedIndexSegmentForTest(invertedListsForTest, documentsForTest) : null;

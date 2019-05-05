@@ -32,11 +32,11 @@ public class Team4OrSearchTest {
         Analyzer analyzer = new NaiveAnalyzer();
         // Initialize InvertedIndexManager
         manager = InvertedIndexManager.createOrOpen(Paths.get(indexFolderName, teamFolderName).toString(), analyzer);
-//        manager.addDocument(doc1);
-//        manager.addDocument(doc2);
-//        manager.addDocument(doc3);
+        manager.addDocument(doc1);
+        manager.addDocument(doc2);
+        manager.addDocument(doc3);
         // Flush to disk
-//        manager.flush();
+        manager.flush();
     }
 
     @Test
@@ -70,7 +70,7 @@ public class Team4OrSearchTest {
      * Test for empty keyword
      * Result should be an empty list of Documents
      */
-//    @Test
+    @Test
     public void test2() {
         // Generate keywords
         List<String> keywords = Arrays.asList("");
@@ -86,7 +86,7 @@ public class Team4OrSearchTest {
      * Test for punctuation characters
      * Results should be an empty list of Documents
      */
-//    @Test
+   @Test
     public void test3() {
         // Generate keywords
         List<String> keywords = Arrays.asList(",", ":./");
