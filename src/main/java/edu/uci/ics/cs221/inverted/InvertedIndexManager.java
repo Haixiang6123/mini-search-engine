@@ -521,7 +521,9 @@ public class InvertedIndexManager {
             {
                 break;
             }else{
+
                 DocumentStore ds = getDocumentStore(i,"");
+
                 //read wordlists  todo: stop upon the target word found
                 PageFileChannel wordsChannel = getSegmentChannel(i,"words");
                 int numWordPages = wordsChannel.getNumPages();   //number of pages of words
