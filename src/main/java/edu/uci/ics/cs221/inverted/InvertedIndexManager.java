@@ -251,7 +251,9 @@ public class InvertedIndexManager {
         wordsChannel.close();
 
         // Reset Buffers
-        this.resetBuffers();
+        this.resetFlushBuffers();
+        // Reset inverted lists
+        this.invertedLists.clear();
 
         // Increment segment number
         this.numSegments += 1;
@@ -263,17 +265,25 @@ public class InvertedIndexManager {
     }
 
     /**
-     * Reset buffer before writing texts in segment
+     * Reset buffers before writing texts in segment
      */
-    private void resetBuffers() {
+    private void resetFlushBuffers() {
         // Reset buffers
         this.flushListsBuffer.clear();
         this.flushWordsBuffer.clear();
         // Initialize words page num
         this.flushWordsBuffer.putInt(0);
+    }
 
-        // Reset inverted lists
-        this.invertedLists.clear();
+    /**
+     * Reset buffers before merge
+     */
+    private void resetMergeBuffers() {
+        // Reset buffers
+        this.mergeListsBuffer.clear();
+        this.mergeWordsBuffer.clear();
+        // Initialize words page num
+        this.mergeWordsBuffer.putInt(0);
     }
 
     /**
@@ -368,9 +378,7 @@ public class InvertedIndexManager {
             newSegListsChannel.close();
 
             // Reset buffers
-            this.mergeListsBuffer.clear();
-            this.mergeWordsBuffer.clear();
-            this.mergeWordsBuffer.putInt(0);
+            this.resetMergeBuffers();
         }
 
         this.numSegments = this.numSegments / 2;

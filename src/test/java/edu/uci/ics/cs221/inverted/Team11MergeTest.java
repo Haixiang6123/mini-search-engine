@@ -107,6 +107,7 @@ public class Team11MergeTest {
         int expectedNumSegments = 2;
         assertEquals(expectedNumSegments, index.getNumSegments());
         InvertedIndexSegmentForTest it = index.getIndexSegment(0);
+        System.out.println(index.getIndexSegment(1).getDocuments().size());
         Map<String, List<Integer>> invertedLists = it.getInvertedLists();
         List<Integer> docIds = invertedLists.get("import");
         List<Integer> expectedDocIds = Arrays.asList(0, 1, 2, 3);
