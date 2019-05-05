@@ -521,7 +521,7 @@ public class InvertedIndexManager {
             {
                 break;
             }else{
-                DocumentStore ds = getDocumentStore(i);
+                DocumentStore ds = getDocumentStore(i,"");
                 //read wordlists  todo: stop upon the target word found
                 PageFileChannel wordsChannel = getSegmentChannel(i,"words");
                 int numWordPages = wordsChannel.getNumPages();   //number of pages of words
@@ -620,6 +620,8 @@ public class InvertedIndexManager {
     public Iterator<Document> searchAndQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
+        //todo: analyze key words
+
         ArrayList<Document> doc = new ArrayList<>();
 
         int i = 0;
@@ -630,7 +632,7 @@ public class InvertedIndexManager {
                 break;
             }else{
                 //open docDB for this segment
-                DocumentStore ds = this.getDocumentStore(i);
+                DocumentStore ds = this.getDocumentStore(i, "");
 
                 //read wordlist
                 PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
@@ -735,7 +737,7 @@ public class InvertedIndexManager {
                 break;
             }else{
                 //open docDB for this segment
-                DocumentStore ds = this.getDocumentStore(i);
+                DocumentStore ds = this.getDocumentStore(i, "");
 
                 //1. read word list of segment
                 PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
