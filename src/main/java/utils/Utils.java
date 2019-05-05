@@ -38,7 +38,7 @@ public class Utils {
     }
 
     public static String bytesToString(byte[] bytes) {
-        return new String(bytes, StandardCharsets.US_ASCII);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     public static String sliceStringFromBuffer(ByteBuffer byteBuffer, int start, int length) {

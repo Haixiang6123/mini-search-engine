@@ -180,7 +180,7 @@ public class InvertedIndexManager {
         // Word Block
         wordsBuffer
                 .putInt(wordBlock.wordLength) // Word length
-                .put(wordBlock.word.getBytes(StandardCharsets.US_ASCII)) // Word
+                .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
                 .putInt(wordBlock.listLength); // List length
