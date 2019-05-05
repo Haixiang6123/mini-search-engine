@@ -514,13 +514,13 @@ public class InvertedIndexManager {
      */
     public Iterator<Document> searchQuery(String keyword) {
         Preconditions.checkNotNull(keyword);
+        ArrayList<Document> doc = new ArrayList<>();
         //stemming the keyword
         List<String> keywords = this.analyzer.analyze(keyword);
         if( keywords == null || keywords.size() == 0)
-            return null;
+            return doc.iterator();
         keyword = keywords.get(0);
 
-        ArrayList<Document> doc = new ArrayList<>();
         int i = 0;
         while(true)   //traverse all segments
         {
@@ -578,50 +578,11 @@ public class InvertedIndexManager {
                 listChannel.close();
                 ds.close();
             }
+            i++;
         }
 
-        if(doc.size() == 0)
-            return null;
-        return doc.iterator();
+        return doc.iterator();  //todo iterator for docStore?
 
-       /*   designed for disk iterating
-        Iterator<Document> it = new Iterator<Document>() {
-
-
-            private int curSegment = 0;
-            private int[] curPostList = null;
-            private int curListIndex = 0;
-            private String key = keyword;
-            DocumentStore ds = MapdbDocStore.createOrOpen("docDB");
-
-            @Override
-            public boolean hasNext() {
-                //     current index hasn't run out of boundary OR we have next segment to read
-                if (curListIndex > curPostList.length||!Files.exists(basePath.resolve("segment" +i))
-                        ds.close();  //close database
-                return curListIndex < curPostList.length || Files.exists(basePath.resolve("segment" + i));
-            }
-
-            @Override
-            public Document next() {
-                //return arrayList[currentIndex++];
-                if(curListIndex < curPostList.length)
-                    return ds.getDocument(curPostList[curListIndex]);
-                else{
-                    return null;
-                }
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
-
-        return it;
-
-        */
-        //throw new UnsupportedOperationException();
     }
 
     /**
@@ -633,6 +594,7 @@ public class InvertedIndexManager {
     public Iterator<Document> searchAndQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
+        ArrayList<Document> doc = new ArrayList<>();
         //todo: analyze key words
         ArrayList<String> analyzed = new ArrayList<>();
         for( String k : keywords) {
@@ -640,10 +602,9 @@ public class InvertedIndexManager {
             if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
                 analyzed.add(ana.get(0));
             else                      // and "" -> no result
-                return null;
+                return doc.iterator();
         }
 
-        ArrayList<Document> doc = new ArrayList<>();
 
         int i = 0;
         while(true)   //traverse all segments
@@ -739,10 +700,10 @@ public class InvertedIndexManager {
                 }
                 ds.close();
             }
+            i++;
         }
 
         return doc.iterator();
-        //throw new UnsupportedOperationException();
     }
 
     /**
@@ -754,6 +715,7 @@ public class InvertedIndexManager {
     public Iterator<Document> searchOrQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
+        List<Document> doc = new ArrayList<>();
         //analyze key words
         ArrayList<String> analyzed = new ArrayList<>();
         for( String k : keywords) {
@@ -761,9 +723,9 @@ public class InvertedIndexManager {
             if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
                 analyzed.add(ana.get(0));
             else                      // and "" -> no result
-                return null;
+                return doc.iterator();
         }
-        List<Document> doc = new ArrayList<>();
+
 
         int i = 0;
         while(true)
@@ -829,6 +791,7 @@ public class InvertedIndexManager {
                 }
                 ds.close();
             }
+            i++;
         }
         return doc.iterator();
     }
