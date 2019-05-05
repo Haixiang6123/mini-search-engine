@@ -124,6 +124,16 @@ public class Utils {
         return new ArrayList<T>(set);
     }
 
+    public static void deleteTempFiles(Path basePath) {
+        File folder = basePath.toFile();
+        File[] files = folder.listFiles();
+        for (File file : files) {
+            if (file.getName().endsWith("_temp")) {
+                file.delete();
+            }
+        }
+    }
+
     public static void renameSegment(Path basePath, int segmentIndex, String originName, String newName) {
         File file = basePath.resolve("segment" + segmentIndex + "_" + originName).toFile();
         File tempFile = basePath.resolve("segment" + segmentIndex + "_" + newName).toFile();
@@ -132,9 +142,16 @@ public class Utils {
     }
 
     public static void renameStore(Path basePath, int segmentIndex, String newName) {
-        File file = basePath.resolve("store" + segmentIndex).toFile();
+        File file = basePath.resolve("store" + segmentIndex + "_").toFile();
         File tempFile = basePath.resolve("store" + segmentIndex + "_" + newName).toFile();
 
         file.renameTo(tempFile);
+    }
+
+    public static void increaseDocId(int baseDocSize, List<Integer> documentIds) {
+        for (int i = 0; i < documentIds.size(); i++) {
+            int d = baseDocSize + documentIds.get(i);
+            documentIds.set(i, d);
+        }
     }
 }

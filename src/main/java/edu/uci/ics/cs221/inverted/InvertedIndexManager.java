@@ -184,7 +184,7 @@ public class InvertedIndexManager {
         }
 
         // Word Block
-        this.flushWordsBuffer
+        wordsBuffer
                 .putInt(wordBlock.wordLength) // Word length
                 .put(wordBlock.word.getBytes(StandardCharsets.US_ASCII)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
@@ -235,7 +235,11 @@ public class InvertedIndexManager {
             );
 
             // Flush word and list
-            this.flushWordAndList(listsChannel, wordsChannel, this.flushListsBuffer, this.flushWordsBuffer, documentIds, wordBlock, meta);
+            this.flushWordAndList(
+                    listsChannel, wordsChannel,
+                    this.flushListsBuffer, this.flushWordsBuffer,
+                    documentIds, wordBlock,
+                    meta);
         }
 
         // Write remaining content from buffer
@@ -311,7 +315,7 @@ public class InvertedIndexManager {
             List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks);
 
             // Document store
-            this.mergeDocStores(leftIndex, rightIndex);
+            int baseDocSize = this.mergeDocStores(leftIndex, rightIndex);
 
             for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
                 WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
@@ -324,19 +328,34 @@ public class InvertedIndexManager {
                         rightSegListsChannel,
                         rightWordBlock
                 );
+                Utils.increaseDocId(baseDocSize, rightInvertedList);
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
-                        this.flushWordAndList(newSegListsChannel, newSegWordsChannel, this.mergeListsBuffer, this.mergeWordsBuffer, leftInvertedList, leftWordBlock, meta);
+                        this.flushWordAndList(
+                                newSegListsChannel, newSegWordsChannel,
+                                this.mergeListsBuffer, this.mergeWordsBuffer,
+                                leftInvertedList, leftWordBlock,
+                                meta);
                     }
                     else {
-                        this.flushWordAndList(newSegListsChannel, newSegWordsChannel, this.mergeListsBuffer, this.mergeWordsBuffer, rightInvertedList, rightWordBlock, meta);
+                        this.flushWordAndList(
+                                newSegListsChannel, newSegWordsChannel,
+                                this.mergeListsBuffer, this.mergeWordsBuffer,
+                                rightInvertedList, rightWordBlock,
+                                meta);
                     }
                 }
                 else {
                     List<Integer> localInvertedList = new ArrayList<>();
                     localInvertedList.addAll(leftInvertedList);
                     localInvertedList.addAll(rightInvertedList);
-                    this.flushWordAndList(newSegListsChannel, newSegWordsChannel, this.mergeListsBuffer, this.mergeWordsBuffer, localInvertedList, leftWordBlock, meta);
+                    // Update list length in word block
+                    leftWordBlock.listLength += rightWordBlock.listLength;
+                    this.flushWordAndList(
+                            newSegListsChannel, newSegWordsChannel,
+                            this.mergeListsBuffer, this.mergeWordsBuffer,
+                            localInvertedList, leftWordBlock,
+                            meta);
                 }
             }
 
@@ -356,6 +375,8 @@ public class InvertedIndexManager {
 
         this.numSegments = this.numSegments / 2;
 
+        // Delete temp files
+        Utils.deleteTempFiles(this.basePath);
 
         // Merge if segment num is still larger than threshold
         if (this.getNumSegments() >= DEFAULT_MERGE_THRESHOLD) {
@@ -385,14 +406,14 @@ public class InvertedIndexManager {
     /**
      * Method to merge right document store to left document store
      */
-    private void mergeDocStores(int leftIndex, int rightIndex) {
+    private int mergeDocStores(int leftIndex, int rightIndex) {
         // Rename document store file
         Utils.renameStore(this.basePath, leftIndex, "temp");
         DocumentStore leftDocStore = this.getDocumentStore(leftIndex, "temp");
         DocumentStore rightDocStore = this.getDocumentStore(rightIndex, "");
         DocumentStore newDocStore = this.getDocumentStore(leftIndex, "");
         // Get left doc store size
-        int docSize = (int) leftDocStore.size();
+        int baseDocSize = (int) leftDocStore.size();
 
         Iterator<Map.Entry<Integer, Document>> rightIterator = rightDocStore.iterator();
         Iterator<Map.Entry<Integer, Document>> leftIterator = rightDocStore.iterator();
@@ -408,7 +429,7 @@ public class InvertedIndexManager {
             Map.Entry<Integer, Document> entry = rightIterator.next();
 
             // Update right documents ID and add it to left document store
-            newDocStore.addDocument(docSize + entry.getKey(), entry.getValue());
+            newDocStore.addDocument(baseDocSize + entry.getKey(), entry.getValue());
         }
         // Close document stores
         leftDocStore.close();
@@ -417,6 +438,8 @@ public class InvertedIndexManager {
         // Delete temp files
         new File(this.basePath.resolve("store" + leftIndex + "_temp").toString()).delete();
         new File(this.basePath.resolve("store" + rightIndex).toString()).delete();
+
+        return baseDocSize;
     }
 
     /**
