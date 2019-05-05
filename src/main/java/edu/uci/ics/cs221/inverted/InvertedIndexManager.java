@@ -5,6 +5,7 @@ import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
+import org.apache.lucene.util.ArrayUtil;
 import utils.Utils;
 
 import javax.print.Doc;
@@ -400,10 +401,10 @@ public class InvertedIndexManager {
                 break;
             }else{
                 //open docDB for this segment
-                DocumentStore ds = getDocumentStore(i);
+                DocumentStore ds = this.getDocumentStore(i);
 
                 //read wordlist
-                PageFileChannel wordsChannel = getSegmentChannel(i, "words");
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
                 int numWordPages = wordsChannel.getNumPages();   //number of pages of words
                 ArrayList<WordBlock> words = new ArrayList<>();
 
@@ -498,20 +499,68 @@ public class InvertedIndexManager {
         List<Document> doc = new ArrayList<>();
 
         int i = 0;
-        while(true)        //todo: condition -- search for existing segments
+        while(true)
         {
-            //1. read word list of segment
+            if(!Files.exists(basePath.resolve("segment" + i +"_words")))  //todo: is the number consecutive? or will have condition like(1,3,4)
+            {
+                break;
+            }else{
+                //open docDB for this segment
+                DocumentStore ds = this.getDocumentStore(i);
 
-            //2. get length of each word's wordlist
+                //1. read word list of segment
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
+                int numWordPages = wordsChannel.getNumPages();   //number of pages of words
+                ArrayList<WordBlock> words = new ArrayList<>();
 
-            //3. loop: for each word, get the wordlist from disk, then OR the list (idx) with current list.
+                for (int p = 0; p < numWordPages; p++)
+                {
+                    ByteBuffer page = wordsChannel.readPage(p);
+                    int end = page.getInt();
 
-            //4. retrieve the documents to List<Document>
-            break;
+                    while(page.position() < end){
+                        //read word block
+                        int wordLength = page.getInt();
+                        String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
+                        if(keywords.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
+                            WordBlock wb = new WordBlock(
+                                    wordLength,
+                                    word,
+                                    page.getInt(),
+                                    page.getInt(),
+                                    page.getInt());
+                            //add the word in search query
+                            words.add(wb);
+                        }
+                    }
+                }
+
+                //retrive the lists and merge with basic
+                TreeSet<Integer> union = new TreeSet<>();
+                for(WordBlock wdata : words)   //search the word sequentially
+                {
+                    //read posting list from file
+                    PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
+                    ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
+                    //store docID
+                    Integer[] postList = new Integer[wdata.listLength];
+                    listPage.position(wdata.listOffset);
+                    for(int l = 0; l < wdata.listLength; l++)
+                        postList[l] = listPage.getInt();
+
+                    //use set to do union todo: optimiaze the way of doing OR
+                    union.addAll(Arrays.asList(postList));
+
+                    }
+                //retrieve the documents to List<Document>
+                for(int docId : union)
+                {
+                    doc.add(ds.getDocument(docId));
+                }
+                ds.close();
+            }
         }
-
-        //todo: how to return iterator that could access disk upon request ?
-        throw new UnsupportedOperationException();
+        return doc.iterator();
     }
 
     /**
