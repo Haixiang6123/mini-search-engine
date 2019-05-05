@@ -287,17 +287,6 @@ public class InvertedIndexManager {
     }
 
     /**
-     * Need to rename segment before merge
-     */
-    private void renameBeforeMerge(int leftSegmentIndex, int rightSegmentIndex) {
-        // Rename segments
-        Utils.renameSegment(this.basePath, leftSegmentIndex, "lists", "lists_temp");
-        Utils.renameSegment(this.basePath, leftSegmentIndex, "words", "words_temp");
-        Utils.renameSegment(this.basePath, rightSegmentIndex, "lists", "lists_temp");
-        Utils.renameSegment(this.basePath, rightSegmentIndex, "words", "words_temp");
-    }
-
-    /**
      * Merges all the disk segments of the inverted index pair-wise.
      */
     public void mergeAllSegments() {
@@ -305,17 +294,16 @@ public class InvertedIndexManager {
         WriteMeta meta = new WriteMeta();
 
         // Merge all segments
-        for (int leftIndex = 0, rightIndex = 1; rightIndex < this.getNumSegments(); leftIndex++, rightIndex++) {
-            // Rename current 2 segments
-            this.renameBeforeMerge(leftIndex, rightIndex);
+        for (int leftIndex = 0, rightIndex = 1; rightIndex < this.getNumSegments(); leftIndex += 2, rightIndex += 2) {
+            int newIndex = leftIndex / 2;
             // New segment channels
-            PageFileChannel newSegWordsChannel = this.getSegmentChannel(leftIndex, "words");
-            PageFileChannel newSegListsChannel = this.getSegmentChannel(leftIndex, "lists");
+            PageFileChannel newSegWordsChannel = this.getSegmentChannel(newIndex, "words_new");
+            PageFileChannel newSegListsChannel = this.getSegmentChannel(newIndex, "lists_new");
             // Original channels
-            PageFileChannel leftSegWordsChannel = this.getSegmentChannel(leftIndex, "words_temp");
-            PageFileChannel leftSegListsChannel = this.getSegmentChannel(leftIndex, "lists_temp");
-            PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words_temp");
-            PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists_temp");
+            PageFileChannel leftSegWordsChannel = this.getSegmentChannel(leftIndex, "words");
+            PageFileChannel leftSegListsChannel = this.getSegmentChannel(leftIndex, "lists");
+            PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words");
+            PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists");
 
             // Get word blocks from left and right segment
             List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftSegWordsChannel, leftIndex);
@@ -367,6 +355,10 @@ public class InvertedIndexManager {
                             localInvertedList, leftWordBlock,
                             meta);
                 }
+
+                // Rename current 2 segments
+                Utils.renameSegment(this.basePath, newIndex, "words_new", "words");
+                Utils.renameSegment(this.basePath, newIndex, "lists_new", "lists");
             }
 
             // Write remaining content from buffer
@@ -382,9 +374,6 @@ public class InvertedIndexManager {
         }
 
         this.numSegments = this.numSegments / 2;
-
-        // Delete temp files
-        Utils.deleteTempFiles(this.basePath);
 
         // Merge if segment num is still larger than threshold
         if (this.getNumSegments() >= DEFAULT_MERGE_THRESHOLD) {
@@ -415,16 +404,16 @@ public class InvertedIndexManager {
      * Method to merge right document store to left document store
      */
     private int mergeDocStores(int leftIndex, int rightIndex) {
+        int newIndex = leftIndex / 2;
         // Rename document store file
-        Utils.renameStore(this.basePath, leftIndex, "temp");
-        DocumentStore leftDocStore = this.getDocumentStore(leftIndex, "temp");
+        DocumentStore leftDocStore = this.getDocumentStore(leftIndex, "");
         DocumentStore rightDocStore = this.getDocumentStore(rightIndex, "");
-        DocumentStore newDocStore = this.getDocumentStore(leftIndex, "");
+        DocumentStore newDocStore = this.getDocumentStore(newIndex, "new");
         // Get left doc store size
         int baseDocSize = (int) leftDocStore.size();
 
+        Iterator<Map.Entry<Integer, Document>> leftIterator = leftDocStore.iterator();
         Iterator<Map.Entry<Integer, Document>> rightIterator = rightDocStore.iterator();
-        Iterator<Map.Entry<Integer, Document>> leftIterator = rightDocStore.iterator();
         // Add left document store
         while (leftIterator.hasNext()) {
             Map.Entry<Integer, Document> entry = leftIterator.next();
@@ -443,9 +432,10 @@ public class InvertedIndexManager {
         leftDocStore.close();
         rightDocStore.close();
         newDocStore.close();
-        // Delete temp files
-        new File(this.basePath.resolve("store" + leftIndex + "_temp").toString()).delete();
-        new File(this.basePath.resolve("store" + rightIndex).toString()).delete();
+        // Delete origin document store files
+        (new File(this.basePath.resolve("store" + leftIndex + "_").toString())).delete();
+        (new File(this.basePath.resolve("store" + rightIndex + "_").toString())).delete();
+        Utils.renameStore(this.basePath, newIndex, "new", "");
 
         return baseDocSize;
     }

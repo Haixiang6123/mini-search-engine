@@ -44,8 +44,7 @@ public class Team12MergeTest {
 
         iim.mergeAllSegments();
 
-        assert iim.getNumSegments() == 2;
-
+        assert iim.getNumSegments() == 1;
     }
 
     /**

@@ -129,9 +129,11 @@ public class Utils {
         File[] files = folder.listFiles();
         for (File file : files) {
             if (file.getName().endsWith("_temp")) {
+                System.out.print(file.getName() + "|");
                 file.delete();
             }
         }
+        System.out.println();
     }
 
     public static void renameSegment(Path basePath, int segmentIndex, String originName, String newName) {
@@ -141,8 +143,8 @@ public class Utils {
         file.renameTo(tempFile);
     }
 
-    public static void renameStore(Path basePath, int segmentIndex, String newName) {
-        File file = basePath.resolve("store" + segmentIndex + "_").toFile();
+    public static void renameStore(Path basePath, int segmentIndex, String originName, String newName) {
+        File file = basePath.resolve("store" + segmentIndex + "_" + originName).toFile();
         File tempFile = basePath.resolve("store" + segmentIndex + "_" + newName).toFile();
 
         file.renameTo(tempFile);
