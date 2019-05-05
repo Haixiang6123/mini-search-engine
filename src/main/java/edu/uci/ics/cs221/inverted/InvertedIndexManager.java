@@ -56,6 +56,8 @@ public class InvertedIndexManager {
     // Merge variables
     private ByteBuffer mergeWordsBuffer = null;
     private ByteBuffer mergeListsBuffer = null;
+    //in memory documents
+    private Map<Integer,Document> inMemDocs = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -114,7 +116,7 @@ public class InvertedIndexManager {
      */
     public void addDocument(Document document) {
         if (this.documentStore == null) {
-            this.documentStore = this.getDocumentStore(this.numSegments, "");
+            this.documentStore = this.getDocumentStore(this.numSegments, ""); //todo shall we create it upon flush?
         }
         // Get new document ID
         int newDocId = (int) this.documentStore.size();
@@ -876,6 +878,9 @@ public class InvertedIndexManager {
 
         Map<String, List<Integer>> invertedListsForTest = this.getInvertedListsForTest(listsFileChannel, wordsFileChannel, segmentNum);
         Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
+
+        listsFileChannel.close();
+        wordsFileChannel.close();
 
         return documentsForTest.size() != 0 ?
                 new InvertedIndexSegmentForTest(invertedListsForTest, documentsForTest) : null;
