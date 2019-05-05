@@ -23,4 +23,13 @@ public class WordBlock {
     public int getWordBlockCapacity() {
         return Integer.BYTES + this.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES;
     }
+
+    @Override
+    public String toString() {
+        return "WordLength: " + this.wordLength + "; " +
+                "Word: " + this.word + "; " +
+                "ListsPageNum: " + this.listsPageNum + "; " +
+                "ListOffset: " + this.listOffset + "; " +
+                "ListLength: " + this.listLength + "; ";
+    }
 }
