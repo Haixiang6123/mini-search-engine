@@ -23,7 +23,7 @@ public class Team17FlushTest {
         File dir = new File("./index/Team17");
         for (File file: dir.listFiles()){
             if (!file.isDirectory()){
-                file.delete();
+                System.out.println(file.delete());
             }
         }
         dir.delete();
@@ -142,7 +142,7 @@ public class Team17FlushTest {
         File dir = new File("./index/Team17");
         for (File file: dir.listFiles()){
             if (!file.isDirectory()){
-                file.delete();
+                System.out.println(file.delete());
             }
         }
     }

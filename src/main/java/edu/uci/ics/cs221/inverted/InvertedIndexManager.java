@@ -552,11 +552,13 @@ public class InvertedIndexManager {
                     }
                 }
 
+                wordsChannel.close();
+
+                PageFileChannel listChannel = getSegmentChannel(i, "lists");
                 for(WordBlock wdata : words)   //search the word sequentially
                 {
                     if (keyword.equals(wdata.word)){
                         //read posting list from file
-                        PageFileChannel listChannel = getSegmentChannel(i, "lists");
                         ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
                         //store docID
                         int[] postList = new int[wdata.listLength];
@@ -571,6 +573,7 @@ public class InvertedIndexManager {
                         break;   //break if the word is found
                     }
                 }
+                listChannel.close();
                 ds.close();
             }
         }
@@ -677,6 +680,8 @@ public class InvertedIndexManager {
                     }
                 }
 
+                wordsChannel.close();
+
                 if(words.size() != analyzed.size())   // And query exists some words not in this segment; todo better checking method
                     continue;
 
@@ -690,10 +695,10 @@ public class InvertedIndexManager {
                                }
                            });
 
+                PageFileChannel listChannel = getSegmentChannel(i, "lists");
                 for(WordBlock wdata : words)
                 {
                     //read posting list from file
-                    PageFileChannel listChannel = getSegmentChannel(i, "lists");
                     ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
                     //store docID
                     Integer[] postList = new Integer[wdata.listLength];
@@ -724,6 +729,7 @@ public class InvertedIndexManager {
                         }
                     }
                 }
+                listChannel.close();
                 //read doc
                 for(int docId : intersection)
                 {
@@ -794,12 +800,14 @@ public class InvertedIndexManager {
                     }
                 }
 
+                wordsChannel.close();
+
                 //retrive the lists and merge with basic
                 TreeSet<Integer> union = new TreeSet<>();
+                PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
                 for(WordBlock wdata : words)   //search the word sequentially
                 {
                     //read posting list from file
-                    PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
                     ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
                     //store docID
                     Integer[] postList = new Integer[wdata.listLength];
@@ -810,7 +818,8 @@ public class InvertedIndexManager {
                     //use set to do union todo: optimiaze the way of doing OR
                     union.addAll(Arrays.asList(postList));
 
-                    }
+                }
+                listChannel.close();
                 //retrieve the documents to List<Document>
                 for(int docId : union)
                 {
