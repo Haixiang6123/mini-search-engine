@@ -511,8 +511,13 @@ public class InvertedIndexManager {
      * @return a iterator of documents matching the query
      */
     public Iterator<Document> searchQuery(String keyword) {
-
         Preconditions.checkNotNull(keyword);
+        //stemming the keyword
+        List<String> keywords = this.analyzer.analyze(keyword);
+        if( keywords == null || keywords.size() == 0)
+            return null;
+        keyword = keywords.get(0);
+
         ArrayList<Document> doc = new ArrayList<>();
         int i = 0;
         while(true)   //traverse all segments
@@ -570,8 +575,9 @@ public class InvertedIndexManager {
             }
         }
 
-
-       return doc.iterator();
+        if(doc.size() == 0)
+            return null;
+        return doc.iterator();
 
        /*   designed for disk iterating
         Iterator<Document> it = new Iterator<Document>() {
@@ -623,6 +629,14 @@ public class InvertedIndexManager {
         Preconditions.checkNotNull(keywords);
 
         //todo: analyze key words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for( String k : keywords) {
+            List<String> ana = this.analyzer.analyze(k);
+            if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
+                analyzed.add(ana.get(0));
+            else                      // and "" -> no result
+                return null;
+        }
 
         ArrayList<Document> doc = new ArrayList<>();
 
@@ -636,7 +650,7 @@ public class InvertedIndexManager {
                 //open docDB for this segment
                 DocumentStore ds = this.getDocumentStore(i, "");
 
-                //read wordlist
+                //read wordlist: only read those in anaylized lists
                 PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
                 int numWordPages = wordsChannel.getNumPages();   //number of pages of words
                 ArrayList<WordBlock> words = new ArrayList<>();
@@ -650,7 +664,7 @@ public class InvertedIndexManager {
                         //read word block
                         int wordLength = page.getInt();
                         String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
-                        if(keywords.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
+                        if(analyzed.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
                             WordBlock wb = new WordBlock(
                                     wordLength,
                                     word,
@@ -662,6 +676,9 @@ public class InvertedIndexManager {
                         }
                     }
                 }
+
+                if(words.size() != analyzed.size())   // And query exists some words not in this segment; todo better checking method
+                    continue;
 
                 //retrive the lists and merge with basic
                 ArrayList<Integer> intersection = null;
@@ -729,6 +746,15 @@ public class InvertedIndexManager {
     public Iterator<Document> searchOrQuery(List<String> keywords) {
         Preconditions.checkNotNull(keywords);
 
+        //analyze key words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for( String k : keywords) {
+            List<String> ana = this.analyzer.analyze(k);
+            if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
+                analyzed.add(ana.get(0));
+            else                      // and "" -> no result
+                return null;
+        }
         List<Document> doc = new ArrayList<>();
 
         int i = 0;
@@ -755,7 +781,7 @@ public class InvertedIndexManager {
                         //read word block
                         int wordLength = page.getInt();
                         String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
-                        if(keywords.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
+                        if(analyzed.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
                             WordBlock wb = new WordBlock(
                                     wordLength,
                                     word,
