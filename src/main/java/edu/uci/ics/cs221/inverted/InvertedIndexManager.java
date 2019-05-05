@@ -579,14 +579,13 @@ public class InvertedIndexManager {
         ArrayList<Document> doc = new ArrayList<>();
         //analyze key words
         ArrayList<String> analyzed = new ArrayList<>();
-        for (String k : keywords) {
-            List<String> ana = this.analyzer.analyze(k);
-            if (ana != null && ana.size() > 0 && !ana.get(0).equals(""))  // not empty string
-                analyzed.add(ana.get(0));
-            else                      // and "" -> no result
+        for (String keyword : keywords) {
+            List<String> result = this.analyzer.analyze(keyword);
+            if (result != null && result.size() > 0 && !result.get(0).equals(""))
+                analyzed.addAll(result);
+            else
                 return doc.iterator();
         }
-
 
         int i = 0;
         while (true)   //traverse all segments
@@ -595,88 +594,66 @@ public class InvertedIndexManager {
                 break;
             } else {
                 //open docDB for this segment
-                DocumentStore ds = this.getDocumentStore(i, "");
+                DocumentStore documentStore = this.getDocumentStore(i, "");
 
-                //read wordlist: only read those in anaylized lists
+                // Read wordlist: only read those in anaylized lists
                 PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
-                int numWordPages = wordsChannel.getNumPages();   //number of pages of words
-                ArrayList<WordBlock> words = new ArrayList<>();
 
-                for (int p = 0; p < numWordPages; p++) {
-                    ByteBuffer page = wordsChannel.readPage(p);
-                    int end = page.getInt();
+                // Get all word blocks
+                List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsChannel, i);
 
-                    while (page.position() < end) {
-                        //read word block
-                        int wordLength = page.getInt();
-                        String word = Utils.sliceStringFromBuffer(page, page.position(), wordLength);
-                        if (analyzed.contains(word)) {    //ArrayList.contains() tests equals(), not object identity
-                            WordBlock wb = new WordBlock(
-                                    wordLength,
-                                    word,
-                                    page.getInt(),
-                                    page.getInt(),
-                                    page.getInt());
-                            //add the word in search query
-                            words.add(wb);
-                        }
-                    }
-                }
+                // Filter word blocks
+                List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
 
-                wordsChannel.close();
-
-                if (words.size() != analyzed.size())   // And query exists some words not in this segment; todo better checking method
+                // And query exists some words not in this segment
+                if (filteredWordBlocks.size() != analyzed.size())
                     continue;
 
-                //retrive the lists and merge with basic
+                // Retrieve the lists and merge with basic
                 ArrayList<Integer> intersection = null;
-                //sort the words' list ; merge the list from short list to longer list
-                words.sort(new Comparator<WordBlock>() {
-                    @Override
-                    public int compare(WordBlock o1, WordBlock o2) {
-                        return o1.listLength - o2.listLength;
-                    }
-                });
+                // Sort the words' list ; merge the list from short list to longer list
+                filteredWordBlocks.sort(Comparator.comparingInt(o -> o.listLength));
 
                 PageFileChannel listChannel = getSegmentChannel(i, "lists");
-                for (WordBlock wdata : words) {
-                    //read posting list from file
-                    ByteBuffer listPage = listChannel.readPage(wdata.listsPageNum);
-                    //store docID
-                    Integer[] postList = new Integer[wdata.listLength];
-                    listPage.position(wdata.listOffset);
-                    for (int l = 0; l < wdata.listLength; l++)
-                        postList[l] = listPage.getInt();
+                for (WordBlock wordBlock : filteredWordBlocks) {
+                    // Get inverted list
+                    List<Integer> postList = this.getInvertedListFromSegment(listChannel, wordBlock);
 
                     if (intersection == null) {
-                        intersection = new ArrayList<>(Arrays.asList(postList));
+                        intersection = new ArrayList<>(postList);
                     } else {
-                        //find intersection:  by binary search
-                        ArrayList<Integer> temp = new ArrayList<>();
-                        int lowbound = 0;   //lowerbound for list being searched; the ids are sorted in posting list
+                        // Find intersection: by binary search
+                        ArrayList<Integer> result = new ArrayList<>();
+                        // Lowerbound for list being searched; the ids are sorted in posting list
+                        int lowbound = 0;
                         for (Integer target : intersection) {
-                            int l = lowbound, r = wdata.listLength - 1;
-                            while (l < r) {
-                                int mid = (l + r) / 2;
-                                if (postList[mid].compareTo(target) < 0)   //Integer comparation
-                                    l = mid + 1;
+                            int left = lowbound, right = wordBlock.listLength - 1;
+                            while (left < right) {
+                                int mid = (left + right) / 2;
+                                //Integer comparision
+                                if (postList.get(mid).compareTo(target) < 0)
+                                    left = mid + 1;
                                 else    //postList[mid] >= target
-                                    r = mid;
+                                    right = mid;
                             }
-                            if (postList[r].compareTo(target) == 0)    //equals: add the number to new arraylist
+                            // Equals: add the number to new ArrayList
+                            if (postList.get(right).compareTo(target) == 0)
                             {
-                                temp.add(target);
-                                lowbound = r + 1;   //raise the search range's lower bound
+                                result.add(target);
+                                lowbound = right + 1;   //raise the search range's lower bound
                             }
                         }
+                        // Update intersection
+                        intersection = result;
                     }
                 }
-                listChannel.close();
                 //read doc
                 for (int docId : intersection) {
-                    doc.add(ds.getDocument(docId));
+                    doc.add(documentStore.getDocument(docId));
                 }
-                ds.close();
+                documentStore.close();
+                wordsChannel.close();
+                listChannel.close();
             }
             i++;
         }
