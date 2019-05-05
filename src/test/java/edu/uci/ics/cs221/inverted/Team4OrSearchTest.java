@@ -8,48 +8,40 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class Team4OrSearchTest {
+    private final String FOLDER = "./index/Team4OrSearchTest";
     private InvertedIndexManager manager = null;
     // Initialize document
     private Document doc1 = new Document("cat dog cat dog");
     private Document doc2 = new Document("apple dog");
     private Document doc3 = new Document("cat smile");
-    private String indexFolderName = "index";
-    private String teamFolderName = "Team18FlushTest";
 
     @Before
     public void before() {
         // Initialize analyzer
         Analyzer analyzer = new NaiveAnalyzer();
         // Initialize InvertedIndexManager
-        manager = InvertedIndexManager.createOrOpen(Paths.get(indexFolderName, teamFolderName).toString(), analyzer);
+        this.manager = InvertedIndexManager.createOrOpen(FOLDER, analyzer);
         manager.addDocument(doc1);
         manager.addDocument(doc2);
         manager.addDocument(doc3);
         // Flush to disk
         manager.flush();
     }
-
-    @Test
-    public void test0() {
-        manager.mergeAllSegments();
-    }
-
     /**
+     * Test 1:
      * Test for normal search or case
      * This test case is going to search "cat" or "apple"
      * The result should be doc1, doc2, doc3
      */
-//    @Test
+    @Test
     public void test1() {
         // Generate expected list
         List<Document> expected = Arrays.asList(doc1, doc2, doc3);
@@ -67,6 +59,7 @@ public class Team4OrSearchTest {
     }
 
     /**
+     * Test 2:
      * Test for empty keyword
      * Result should be an empty list of Documents
      */
@@ -83,10 +76,11 @@ public class Team4OrSearchTest {
     }
 
     /**
+     * Test 3:
      * Test for punctuation characters
      * Results should be an empty list of Documents
      */
-   @Test
+    @Test
     public void test3() {
         // Generate keywords
         List<String> keywords = Arrays.asList(",", ":./");
@@ -98,28 +92,19 @@ public class Team4OrSearchTest {
         assertFalse(results.hasNext());
     }
 
-
     /**
      * Clean up the cache files
      */
     @After
     public void after() {
-        File indexFolder = new File(Paths.get(indexFolderName).toString());
-        File teamFolder = new File(Paths.get(indexFolderName, teamFolderName).toString());
-        // Delete files
-        for (File file : Objects.requireNonNull(teamFolder.listFiles())) {
+        File cacheFolder = new File(FOLDER);
+        for (File file : cacheFolder.listFiles()) {
             try {
                 file.delete();
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        // Delete folders
-        if (teamFolder.exists()) {
-            teamFolder.delete();
-        }
-        if (indexFolder.exists()) {
-            indexFolder.delete();
-        }
+        cacheFolder.delete();
     }
 }
