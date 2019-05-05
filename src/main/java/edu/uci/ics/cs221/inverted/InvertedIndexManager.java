@@ -528,8 +528,13 @@ public class InvertedIndexManager {
 
         keyword = keywords.get(0);
 
+        int i = 0;
         //traverse all segments
-        for (int i = 0; !Files.exists(basePath.resolve("segment" + i + "_words")); i++) {
+        while (true) {
+            // the numbers are consecutive thus could stop when i cannot be accessed
+            if (!Files.exists(basePath.resolve("segment" + i + "_words"))) {
+                break;
+            } else {
                 DocumentStore ds = getDocumentStore(i, "");
 
                 // Read word list
@@ -553,6 +558,8 @@ public class InvertedIndexManager {
                 listChannel.close();
                 wordsChannel.close();
                 ds.close();
+            }
+            i++;
         }
 
         return doc.iterator();  //todo iterator for docStore?
@@ -579,68 +586,75 @@ public class InvertedIndexManager {
                 return doc.iterator();
         }
 
+        int i = 0;
         //traverse all segments
-        for (int i = 0; !Files.exists(basePath.resolve("segment" + i + "_words")); i++) {
-            //open docDB for this segment
-            DocumentStore documentStore = this.getDocumentStore(i, "");
+        while (true) {
+            if (!Files.exists(basePath.resolve("segment" + i + "_words"))) {
+                break;
+            } else {
+                //open docDB for this segment
+                DocumentStore documentStore = this.getDocumentStore(i, "");
 
-            // Read word list: only read those in analyzed lists
-            PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
+                // Read word list: only read those in analyzed lists
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
 
-            // Get all word blocks
-            List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsChannel, i);
+                // Get all word blocks
+                List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsChannel, i);
 
-            // Filter word blocks
-            List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
+                // Filter word blocks
+                List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
 
-            // And query exists some words not in this segment
-            if (filteredWordBlocks.size() != analyzed.size())
-                continue;
+                // And query exists some words not in this segment
+                if (filteredWordBlocks.size() != analyzed.size())
+                    continue;
 
-            // Retrieve the lists and merge with basic
-            ArrayList<Integer> intersection = null;
-            // Sort the words' list ; merge the list from short list to longer list
-            filteredWordBlocks.sort(Comparator.comparingInt(o -> o.listLength));
+                // Retrieve the lists and merge with basic
+                ArrayList<Integer> intersection = null;
+                // Sort the words' list ; merge the list from short list to longer list
+                filteredWordBlocks.sort(Comparator.comparingInt(o -> o.listLength));
 
-            PageFileChannel listChannel = getSegmentChannel(i, "lists");
-            for (WordBlock wordBlock : filteredWordBlocks) {
-                // Get inverted list
-                List<Integer> postList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                PageFileChannel listChannel = getSegmentChannel(i, "lists");
+                for (WordBlock wordBlock : filteredWordBlocks) {
+                    // Get inverted list
+                    List<Integer> postList = this.getInvertedListFromSegment(listChannel, wordBlock);
 
-                if (intersection == null) {
-                    intersection = new ArrayList<>(postList);
-                } else {
-                    // Find intersection: by binary search
-                    ArrayList<Integer> result = new ArrayList<>();
-                    // Lowerbound for list being searched; the ids are sorted in posting list
-                    int lowbound = 0;
-                    for (Integer target : intersection) {
-                        int left = lowbound, right = wordBlock.listLength - 1;
-                        while (left < right) {
-                            int mid = (left + right) / 2;
-                            //Integer comparision
-                            if (postList.get(mid).compareTo(target) < 0)
-                                left = mid + 1;
-                            else    //postList[mid] >= target
-                                right = mid;
+                    if (intersection == null) {
+                        intersection = new ArrayList<>(postList);
+                    } else {
+                        // Find intersection: by binary search
+                        ArrayList<Integer> result = new ArrayList<>();
+                        // Lowerbound for list being searched; the ids are sorted in posting list
+                        int lowbound = 0;
+                        for (Integer target : intersection) {
+                            int left = lowbound, right = wordBlock.listLength - 1;
+                            while (left < right) {
+                                int mid = (left + right) / 2;
+                                //Integer comparision
+                                if (postList.get(mid).compareTo(target) < 0)
+                                    left = mid + 1;
+                                else    //postList[mid] >= target
+                                    right = mid;
+                            }
+                            // Equals: add the number to new ArrayList
+                            if (postList.get(right).compareTo(target) == 0)
+                            {
+                                result.add(target);
+                                lowbound = right + 1;   //raise the search range's lower bound
+                            }
                         }
-                        // Equals: add the number to new ArrayList
-                        if (postList.get(right).compareTo(target) == 0) {
-                            result.add(target);
-                            lowbound = right + 1;   //raise the search range's lower bound
-                        }
+                        // Update intersection
+                        intersection = result;
                     }
-                    // Update intersection
-                    intersection = result;
                 }
+                //read doc
+                for (int docId : intersection) {
+                    doc.add(documentStore.getDocument(docId));
+                }
+                documentStore.close();
+                wordsChannel.close();
+                listChannel.close();
             }
-            //read doc
-            for (int docId : intersection) {
-                doc.add(documentStore.getDocument(docId));
-            }
-            documentStore.close();
-            wordsChannel.close();
-            listChannel.close();
+            i++;
         }
 
         return doc.iterator();
