@@ -57,12 +57,13 @@ public class InvertedIndexManager {
     private ByteBuffer mergeWordsBuffer = null;
     private ByteBuffer mergeListsBuffer = null;
     //in memory documents
-    private Map<Integer, Document> inMemDocs = null;
+    private Map<Integer, Document> documents = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
         this.invertedLists = new HashMap<>();
+        this.documents = new HashMap<>();
         // Flush variables init
         this.flushListsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.flushWordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
@@ -115,13 +116,10 @@ public class InvertedIndexManager {
      * @param document
      */
     public void addDocument(Document document) {
-        if (this.documentStore == null) {
-            this.documentStore = this.getDocumentStore(this.numSegments, ""); //todo shall we create it upon flush?
-        }
         // Get new document ID
-        int newDocId = (int) this.documentStore.size();
+        int newDocId = this.documents.size();
         // Add new document to store
-        this.documentStore.addDocument(newDocId, document);
+        this.documents.put(newDocId, document);
 
         // Use Analyzer to extract words from a document
         List<String> words = this.analyzer.analyze(document.getText());
@@ -189,12 +187,20 @@ public class InvertedIndexManager {
     }
 
     private boolean isFlushValid() {
-        if (this.documentStore == null) {
-            return false;
+        return this.invertedLists.size() != 0 || this.documents.size() != 0;
+    }
+
+    /**
+     * Flush documents from memory to disk
+     */
+    private void flushDocuments() {
+        // Add documents from memory to disk
+        this.documentStore = this.getDocumentStore(this.numSegments, "");
+        for (int id = 0; id < this.documents.size(); id++) {
+            this.documentStore.addDocument(id, this.documents.get(id));
         }
-        long documentSize = this.documentStore.size();
         this.documentStore.close();
-        return this.invertedLists.size() != 0 || documentSize != 0;
+        this.documentStore = null;
     }
 
     /**
@@ -207,11 +213,7 @@ public class InvertedIndexManager {
             return;
         }
 
-        // Reset document store
-        if (this.documentStore != null) {
-            this.documentStore.close();
-            this.documentStore = null;
-        }
+        this.flushDocuments();
 
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
@@ -250,6 +252,7 @@ public class InvertedIndexManager {
         this.resetFlushBuffers();
         // Reset inverted lists
         this.invertedLists.clear();
+        this.documents.clear();
 
         // Increment segment number
         this.numSegments += 1;
@@ -521,6 +524,7 @@ public class InvertedIndexManager {
     public Iterator<Document> searchQuery(String keyword) {
         Preconditions.checkNotNull(keyword);
         ArrayList<Document> doc = new ArrayList<>();
+
         //1. stemming the keyword
         List<String> keywords = this.analyzer.analyze(keyword);
         if (keywords == null || keywords.size() == 0 || keywords.get(0).equals(""))
@@ -535,7 +539,7 @@ public class InvertedIndexManager {
             if (!Files.exists(basePath.resolve("segment" + i + "_words"))) {
                 break;
             } else {
-                DocumentStore ds = getDocumentStore(i, "");
+                DocumentStore documentStore = getDocumentStore(i, "");
 
                 // Read word list
                 PageFileChannel wordsChannel = getSegmentChannel(i, "words");
@@ -550,14 +554,14 @@ public class InvertedIndexManager {
                     List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
 
                     for (int docId : invertedList) {
-                        doc.add(ds.getDocument(docId));
-                        System.out.println("segment : " + i + "docId:" + docId + ds.getDocument(docId).getText());
+                        doc.add(documentStore.getDocument(docId));
+                        System.out.println("segment : " + i + "docId:" + docId + documentStore.getDocument(docId).getText());
                     }
                 }
 
                 listChannel.close();
                 wordsChannel.close();
-                ds.close();
+                documentStore.close();
             }
             i++;
         }
@@ -605,8 +609,12 @@ public class InvertedIndexManager {
                 List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
 
                 // And query exists some words not in this segment
-                if (filteredWordBlocks.size() != analyzed.size())
+                if (filteredWordBlocks.size() != analyzed.size()) {
+                    documentStore.close();
+                    wordsChannel.close();
+                    i++;
                     continue;
+                }
 
                 // Retrieve the lists and merge with basic
                 ArrayList<Integer> intersection = null;
@@ -636,8 +644,7 @@ public class InvertedIndexManager {
                                     right = mid;
                             }
                             // Equals: add the number to new ArrayList
-                            if (postList.get(right).compareTo(target) == 0)
-                            {
+                            if (postList.get(right).compareTo(target) == 0) {
                                 result.add(target);
                                 lowbound = right + 1;   //raise the search range's lower bound
                             }
