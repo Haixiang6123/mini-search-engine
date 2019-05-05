@@ -556,7 +556,6 @@ public class InvertedIndexManager {
 
                     for (int docId : invertedList) {
                         doc.add(documentStore.getDocument(docId));
-                        System.out.println("segment : " + i + "docId:" + docId + documentStore.getDocument(docId).getText());
                     }
                 }
 
