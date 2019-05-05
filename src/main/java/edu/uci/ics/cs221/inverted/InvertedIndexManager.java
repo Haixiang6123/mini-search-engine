@@ -515,17 +515,17 @@ public class InvertedIndexManager {
     public Iterator<Document> searchQuery(String keyword) {
         Preconditions.checkNotNull(keyword);
         ArrayList<Document> doc = new ArrayList<>();
-        //stemming the keyword
+        //1. stemming the keyword
         List<String> keywords = this.analyzer.analyze(keyword);
-        if( keywords == null || keywords.size() == 0)
+        if( keywords == null || keywords.size() == 0 || keywords.get(0).equals(""))
             return doc.iterator();
+
         keyword = keywords.get(0);
 
         int i = 0;
         while(true)   //traverse all segments
         {
-            if(!Files.exists(basePath.resolve("segment" + i +"_words")))  // the numbers are consecutive thus could stop when i cannot be accessed
-            {
+            if(!Files.exists(basePath.resolve("segment" + i +"_words"))) { // the numbers are consecutive thus could stop when i cannot be accessed
                 break;
             }else{
 
@@ -571,6 +571,7 @@ public class InvertedIndexManager {
                         for(int docId : postList)
                         {
                             doc.add(ds.getDocument(docId));
+                            System.out.println("segment : " + i + "docId:" + docId + ds.getDocument(docId).getText());
                         }
                         break;   //break if the word is found
                     }
@@ -595,11 +596,11 @@ public class InvertedIndexManager {
         Preconditions.checkNotNull(keywords);
 
         ArrayList<Document> doc = new ArrayList<>();
-        //todo: analyze key words
+        //analyze key words
         ArrayList<String> analyzed = new ArrayList<>();
         for( String k : keywords) {
             List<String> ana = this.analyzer.analyze(k);
-            if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
+            if (ana != null && ana.size() > 0 && !ana.get(0).equals(""))  // not empty string
                 analyzed.add(ana.get(0));
             else                      // and "" -> no result
                 return doc.iterator();
@@ -609,7 +610,7 @@ public class InvertedIndexManager {
         int i = 0;
         while(true)   //traverse all segments
         {
-            if(!Files.exists(basePath.resolve("segment" + i +"_words")))  //todo: is the number consecutive? or will have condition like(1,3,4)
+            if(!Files.exists(basePath.resolve("segment" + i +"_words")))
             {
                 break;
             }else{
@@ -674,7 +675,7 @@ public class InvertedIndexManager {
                     }else{
                         //find intersection:  by binary search
                         ArrayList<Integer> temp = new ArrayList<>();
-                        int lowbound = 0;   //lowerbound for list being searched; todo: make sure the ids are sorted
+                        int lowbound = 0;   //lowerbound for list being searched; the ids are sorted in posting list
                         for(Integer target : intersection){
                             int l = lowbound, r = wdata.listLength - 1;
                             while (l < r){
@@ -720,7 +721,7 @@ public class InvertedIndexManager {
         ArrayList<String> analyzed = new ArrayList<>();
         for( String k : keywords) {
             List<String> ana = this.analyzer.analyze(k);
-            if (ana != null || ana.size() > 0 || !ana.get(0).equals(""))  // not empty string
+            if (ana != null && ana.size() > 0 && !ana.get(0).equals(""))  // not empty string  //todo can't filter ""
                 analyzed.add(ana.get(0));
             else                      // and "" -> no result
                 return doc.iterator();
@@ -730,7 +731,7 @@ public class InvertedIndexManager {
         int i = 0;
         while(true)
         {
-            if(!Files.exists(basePath.resolve("segment" + i +"_words")))  //todo: is the number consecutive? or will have condition like(1,3,4)
+            if(!Files.exists(basePath.resolve("segment" + i +"_words")))
             {
                 break;
             }else{
