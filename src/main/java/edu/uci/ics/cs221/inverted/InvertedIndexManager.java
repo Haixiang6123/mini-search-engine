@@ -144,23 +144,16 @@ public class InvertedIndexManager {
      * Flush a list
      */
     private void flushList(PageFileChannel listsChannel, ByteBuffer listsBuffer, List<Integer> documentIds, WriteMeta meta) {
-        // Check lists segment capacity
-        int listCapacity = documentIds.size() * Integer.BYTES;
-
-        // Exceed capacity
-        if (listsBuffer.position() + listCapacity >= listsBuffer.capacity()) {
-            // Write to file
-            listsChannel.writePage(meta.listsPageNum, flushListsBuffer);
-            // Update meta
-            meta.listsPageNum += 1;
-            meta.listsPageOffset = 0;
-            // Allocate a new buffer
-            listsBuffer.clear();
-        }
-
-        // List Block
-        for (Integer documentId : documentIds) {
-            listsBuffer.putInt(documentId);
+        for (Integer id : documentIds) {
+            if (listsBuffer.position() >= listsBuffer.capacity()) {
+                // Write it to segment
+                listsChannel.writePage(meta.listsPageNum, listsBuffer);
+                // Update meta
+                meta.listsPageNum += 1;
+                // Clear buffer
+                listsBuffer.clear();
+            }
+            listsBuffer.putInt(id);
         }
     }
 
@@ -387,17 +380,15 @@ public class InvertedIndexManager {
     private void flushWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel,
                                   ByteBuffer listsBuffer, ByteBuffer wordsBuffer,
                                   List<Integer> invertedList, WordBlock wordBlock, WriteMeta meta) {
-        // Mark down current lists buffer offset and current list page num
-        meta.listsPageOffset = listsBuffer.position();
+        // Update word block
+        wordBlock.listsPageNum = meta.listsPageNum;
+        wordBlock.listOffset = listsBuffer.position();
+
+        // Write word block to segment
+        this.flushWord(wordsChannel, wordsBuffer, wordBlock, meta);
 
         // Write inverted list to segment
         this.flushList(listsChannel, listsBuffer, invertedList, meta);
-
-        // Update word block
-        wordBlock.listsPageNum = meta.listsPageNum;
-        wordBlock.listOffset = meta.listsPageOffset;
-        // Write word block to segment
-        this.flushWord(wordsChannel, wordsBuffer, wordBlock, meta);
     }
 
     /**
@@ -481,11 +472,17 @@ public class InvertedIndexManager {
             return invertedList;
         }
         // Get byte buffer
-        ByteBuffer listsByteBuffer = listsFileChannel.readPage(wordBlock.listsPageNum);
+        int page = wordBlock.listsPageNum;
+        ByteBuffer listsByteBuffer = listsFileChannel.readPage(page);
         // Move pointer to the offset
         listsByteBuffer.position(wordBlock.listOffset);
         // Extract the inverted list
         for (int i = 0; i < wordBlock.listLength; i++) {
+            // Overflow -> span out pages
+            if (listsByteBuffer.position() >= listsByteBuffer.capacity()) {
+                page += 1;
+                listsByteBuffer = listsFileChannel.readPage(page);
+            }
             invertedList.add(listsByteBuffer.getInt());
         }
         return invertedList;
