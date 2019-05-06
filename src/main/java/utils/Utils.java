@@ -67,9 +67,14 @@ public class Utils {
         return fileCount;
     }
 
-    public static List<MergedWordBlock> mergeWordBlocks(List<WordBlock> list1, List<WordBlock> list2) {
+    public static List<MergedWordBlock> mergeWordBlocks(List<WordBlock> list1, List<WordBlock> list2, List<String> deletedWords) {
         List<MergedWordBlock> newList = new ArrayList<>();
         for (WordBlock wordBlock1 : list1) {
+            // Ignore deleted words
+            if (deletedWords.contains(wordBlock1.word)) {
+                continue;
+            }
+
             MergedWordBlock mergedWordBlock = new MergedWordBlock(true);
             mergedWordBlock.leftWordBlock = wordBlock1;
 
@@ -84,6 +89,11 @@ public class Utils {
         }
 
         for (WordBlock wordBlock2 : list2) {
+            // Ignore deleted words
+            if (deletedWords.contains(wordBlock2.word)) {
+                continue;
+            }
+
             boolean found = false;
             for (WordBlock wordBlock1 : list1) {
                 if (wordBlock2.word.equals(wordBlock1.word)) {

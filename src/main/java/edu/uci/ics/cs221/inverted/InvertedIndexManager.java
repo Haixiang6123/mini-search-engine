@@ -56,14 +56,17 @@ public class InvertedIndexManager {
     // Merge variables
     private ByteBuffer mergeWordsBuffer = null;
     private ByteBuffer mergeListsBuffer = null;
-    //in memory documents
+    // In memory documents
     private Map<Integer, Document> documents = null;
+    // Deleted documents
+    private List<String> deletedWords = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.basePath = Paths.get(indexFolder);
         this.invertedLists = new HashMap<>();
         this.documents = new HashMap<>();
+        this.deletedWords = new ArrayList<>();
         // Flush variables init
         this.flushListsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.flushWordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
@@ -310,7 +313,7 @@ public class InvertedIndexManager {
             List<WordBlock> rightWordBlocks = this.getWordBlocksFromSegment(rightSegWordsChannel, rightIndex);
 
             // Merge word blocks
-            List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks);
+            List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks, this.deletedWords);
 
             // Document store
             int baseDocSize = this.mergeDocStores(leftIndex, rightIndex);
@@ -381,6 +384,8 @@ public class InvertedIndexManager {
             // Reset buffers
             this.resetMergeBuffers();
         }
+
+        this.deletedWords.clear();
 
         this.numSegments = this.numSegments / 2;
     }
@@ -515,6 +520,19 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Filter deleted keywords inverted list when searching
+     */
+    private List<WordBlock> filterDeletedWordBlocks(List<WordBlock> wordBlocks) {
+        List<WordBlock> filteredWordsBlocks = new ArrayList<>();
+        for (WordBlock wordBlock : wordBlocks) {
+            if (!this.deletedWords.contains(wordBlock.word)) {
+                filteredWordsBlocks.add(wordBlock);
+            }
+        }
+        return filteredWordsBlocks;
+    }
+
+    /**
      * Performs a single keyword search on the inverted index.
      * You could assume the analyzer won't convert the keyword into multiple tokens.
      * If the keyword is empty, it should not return anything.
@@ -550,6 +568,7 @@ public class InvertedIndexManager {
                 List<WordBlock> words = this.getWordBlocksFromSegment(wordsChannel, i);
                 // Filter word blocks
                 List<WordBlock> filteredWords = this.filterWordBlock(words, Arrays.asList(keyword));
+                filteredWords = this.filterDeletedWordBlocks(filteredWords);
 
                 for (WordBlock wordBlock : filteredWords) {
                     List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
@@ -607,6 +626,7 @@ public class InvertedIndexManager {
 
                 // Filter word blocks
                 List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
+                filteredWordBlocks = this.filterDeletedWordBlocks(filteredWordBlocks);
 
                 // And query exists some words not in this segment
                 if (filteredWordBlocks.size() != analyzed.size()) {
@@ -709,6 +729,7 @@ public class InvertedIndexManager {
 
                 // Filter word blocks
                 List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
+                filteredWordBlocks = this.filterDeletedWordBlocks(filteredWordBlocks);
 
                 // Retrieve the lists and merge with basic
                 TreeSet<Integer> union = new TreeSet<>();
@@ -755,7 +776,8 @@ public class InvertedIndexManager {
      * @param keyword
      */
     public void deleteDocuments(String keyword) {
-        throw new UnsupportedOperationException();
+        // Add to memory
+        this.deletedWords.add(keyword);
     }
 
     /**

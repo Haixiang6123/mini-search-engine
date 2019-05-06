@@ -8,7 +8,6 @@ import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import utils.Utils;
 
 import java.io.File;
 import java.util.Arrays;
