@@ -99,6 +99,15 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Creates a positional index with the given folder, analyzer, and the compressor.
+     * Compressor must be used to compress the inverted lists and the position lists.
+     *
+     */
+    public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Get segment channel by given keyword
      */
     private PageFileChannel getSegmentChannel(int segmentNum, String keyword) {
@@ -758,6 +767,22 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Performs a phrase search on a positional index.
+     * Phrase search means the document must contain the consecutive sequence of keywords in exact order.
+     *
+     * You could assume the analyzer won't convert each keyword into multiple tokens.
+     * Throws UnsupportedOperationException if the inverted index is not a positional index.
+     *
+     * @param phrase, a consecutive sequence of keywords
+     * @return a iterator of documents matching the query
+     */
+    public Iterator<Document> searchPhraseQuery(List<String> phrase) {
+        Preconditions.checkNotNull(phrase);
+
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Iterates through all the documents in all disk segments.
      */
     public Iterator<Document> documentIterator() {
@@ -841,5 +866,19 @@ public class InvertedIndexManager {
 
         documentStore.close();
         return documentsForTest;
+    }
+
+
+    /**
+     * Reads a disk segment of a positional index into memory based on segmentNum.
+     * This function is mainly used for checking correctness in test cases.
+     *
+     * Throws UnsupportedOperationException if the inverted index is not a positional index.
+     *
+     * @param segmentNum n-th segment in the inverted index (start from 0).
+     * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
+     */
+    public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
+        throw new UnsupportedOperationException();
     }
 }
