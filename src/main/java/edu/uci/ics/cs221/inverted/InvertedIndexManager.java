@@ -2,6 +2,8 @@ package edu.uci.ics.cs221.inverted;
 
 import com.google.common.base.Preconditions;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.positional.Compressor;
+import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;

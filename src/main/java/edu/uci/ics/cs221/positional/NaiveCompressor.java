@@ -1,4 +1,4 @@
-package edu.uci.ics.cs221.inverted;
+package edu.uci.ics.cs221.positional;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
