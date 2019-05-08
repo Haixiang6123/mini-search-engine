@@ -1,4 +1,4 @@
-package edu.uci.ics.cs221.inverted;
+package edu.uci.ics.cs221.positional;
 
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.storage.Document;
