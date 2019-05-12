@@ -329,6 +329,7 @@ public class InvertedIndexManager {
         // Reset buffers
         this.flushListsBuffer.clear();
         this.flushWordsBuffer.clear();
+        this.flushPosBuffer.clear();
         // Initialize words page num
         this.flushWordsBuffer.putInt(0);
     }
@@ -340,6 +341,7 @@ public class InvertedIndexManager {
         // Reset buffers
         this.mergeListsBuffer.clear();
         this.mergeWordsBuffer.clear();
+        this.mergePosBuffer.clear();
         // Initialize words page num
         this.mergeWordsBuffer.putInt(0);
     }
@@ -379,25 +381,25 @@ public class InvertedIndexManager {
             for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
                 WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
                 WordBlock rightWordBlock = mergedWordBlock.rightWordBlock;
-                List<Integer> leftInvertedList = this.getInvertedListFromSegment(
+                List<ListBlock> leftInvertedList = this.getInvertedListFromSegment(
                         leftSegListsChannel,
                         leftWordBlock
                 );
-                List<Integer> rightInvertedList = this.getInvertedListFromSegment(
+                List<ListBlock> rightInvertedList = this.getInvertedListFromSegment(
                         rightSegListsChannel,
                         rightWordBlock
                 );
                 Utils.increaseDocId(baseDocSize, rightInvertedList);
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
-                        this.flushWordAndList(
+                        this.mergeWordAndList(
                                 newSegListsChannel, newSegWordsChannel,
                                 newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
                                 leftInvertedList, leftWordBlock,
                                 meta);
                     } else {
-                        this.flushWordAndList(
+                        this.mergeWordAndList(
                                 newSegListsChannel, newSegWordsChannel,
                                 newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
@@ -405,12 +407,12 @@ public class InvertedIndexManager {
                                 meta);
                     }
                 } else {
-                    List<Integer> localInvertedList = new ArrayList<>();
+                    List<ListBlock> localInvertedList = new ArrayList<>();
                     localInvertedList.addAll(leftInvertedList);
                     localInvertedList.addAll(rightInvertedList);
                     // Update list length in word block
                     leftWordBlock.listLength += rightWordBlock.listLength;
-                    this.flushWordAndList(
+                    this.mergeWordAndList(
                             newSegListsChannel, newSegWordsChannel,
                             newSegPosChannel,
                             this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
@@ -454,6 +456,63 @@ public class InvertedIndexManager {
         this.deletedWords.clear();
 
         this.numSegments = this.numSegments / 2;
+    }
+
+    /**
+     * Merge word block and list
+     */
+    private void mergeWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel,
+                                  PageFileChannel posChannel,
+                                  ByteBuffer listsBuffer, ByteBuffer wordsBuffer, ByteBuffer posBuffer,
+                                  List<ListBlock> invertedList, WordBlock wordBlock, WriteMeta meta) {
+        // Update word block
+        wordBlock.listsPageNum = meta.listsPageNum;
+        wordBlock.listOffset = listsBuffer.position();
+
+        // Write word block to segment
+        this.flushWord(wordsChannel, wordsBuffer, wordBlock, meta);
+
+        for (ListBlock listBlock : invertedList) {
+            // Write list block when it is over extend
+            if (listsBuffer.position() >= listsBuffer.capacity()) {
+                // Write it to segment
+                listsChannel.writePage(meta.listsPageNum, listsBuffer);
+                // Update meta
+                meta.listsPageNum += 1;
+                // Clear buffer
+                listsBuffer.clear();
+            }
+
+            // Flush inverted list blocks
+            // Document Id
+            listsBuffer.putInt(listBlock.docId);
+            // Position list page num
+            listsBuffer.putInt(listBlock.listsPageNum);
+            // Offset
+            listsBuffer.putInt(listBlock.listOffset);
+            // Length
+            listsBuffer.putInt(listBlock.listLength);
+
+            // Get position list
+            int page = listBlock.listsPageNum;
+            ByteBuffer byteBuffer = posChannel.readPage(page);
+            for (int i = 0; i < listBlock.listLength; i++) {
+                if (posBuffer.position() >= posBuffer.capacity()) {
+                    // Write it to segment
+                    posChannel.writePage(meta.positionPageNum, posBuffer);
+                    // Update meta
+                    meta.positionPageNum += 1;
+                    // Clear buffer
+                    posBuffer.clear();
+                }
+                if (byteBuffer.position() >= byteBuffer.capacity()) {
+                    byteBuffer = posChannel.readPage(++page);
+                }
+                // Index
+                posBuffer.putInt(byteBuffer.getInt());
+            }
+            posChannel.writePage(meta.positionPageNum, posBuffer);
+        }
     }
 
     /**
@@ -564,8 +623,8 @@ public class InvertedIndexManager {
     /**
      * Get inverted list from segment
      */
-    private List<Integer> getInvertedListFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
-        List<Integer> invertedList = new ArrayList<>();
+    private List<ListBlock> getInvertedListFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
+        List<ListBlock> invertedList = new ArrayList<>();
         if (wordBlock == null) {
             return invertedList;
         }
@@ -581,7 +640,14 @@ public class InvertedIndexManager {
                 page += 1;
                 listsByteBuffer = listsFileChannel.readPage(page);
             }
-            invertedList.add(listsByteBuffer.getInt());
+
+            ListBlock listBlock = new ListBlock(
+                    listsByteBuffer.getInt(), // Document ID
+                    listsByteBuffer.getInt(), // Page num
+                    listsByteBuffer.getInt(), // Offset
+                    listsByteBuffer.getInt()  // Length
+            );
+            invertedList.add(listBlock);
         }
         return invertedList;
     }
@@ -638,7 +704,11 @@ public class InvertedIndexManager {
                 filteredWords = this.filterDeletedWordBlocks(filteredWords);
 
                 for (WordBlock wordBlock : filteredWords) {
-                    List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<ListBlock> listBlocks = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<Integer> invertedList = new ArrayList<>();
+                    for (ListBlock listBlock : listBlocks) {
+                        invertedList.add(listBlock.docId);
+                    }
 
                     for (int docId : invertedList) {
                         doc.add(documentStore.getDocument(docId));
@@ -711,10 +781,14 @@ public class InvertedIndexManager {
                 PageFileChannel listChannel = getSegmentChannel(i, "lists");
                 for (WordBlock wordBlock : filteredWordBlocks) {
                     // Get inverted list
-                    List<Integer> postList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<ListBlock> listBlocks = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<Integer> invertedList = new ArrayList<>();
+                    for (ListBlock listBlock : listBlocks) {
+                        invertedList.add(listBlock.docId);
+                    }
 
                     if (intersection == null) {
-                        intersection = new ArrayList<>(postList);
+                        intersection = new ArrayList<>(invertedList);
                     } else {
                         // Find intersection: by binary search
                         ArrayList<Integer> result = new ArrayList<>();
@@ -725,13 +799,13 @@ public class InvertedIndexManager {
                             while (left < right) {
                                 int mid = (left + right) / 2;
                                 //Integer comparision
-                                if (postList.get(mid).compareTo(target) < 0)
+                                if (invertedList.get(mid).compareTo(target) < 0)
                                     left = mid + 1;
                                 else    //postList[mid] >= target
                                     right = mid;
                             }
                             // Equals: add the number to new ArrayList
-                            if (postList.get(right).compareTo(target) == 0) {
+                            if (invertedList.get(right).compareTo(target) == 0) {
                                 result.add(target);
                                 lowbound = right + 1;   //raise the search range's lower bound
                             }
@@ -802,8 +876,11 @@ public class InvertedIndexManager {
                 TreeSet<Integer> union = new TreeSet<>();
                 PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
                 for (WordBlock wordBlock : filteredWordBlocks) {
-                    // Get inverted list
-                    List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<ListBlock> listBlocks = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    List<Integer> invertedList = new ArrayList<>();
+                    for (ListBlock listBlock : listBlocks) {
+                        invertedList.add(listBlock.docId);
+                    }
 
                     // Use set to do union
                     union.addAll(invertedList);
@@ -903,7 +980,11 @@ public class InvertedIndexManager {
         List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
 
         for (WordBlock wordBlock : wordBlocks) {
-            List<Integer> invertedList = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
+            List<ListBlock> listBlocks = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
+            List<Integer> invertedList = new ArrayList<>();
+            for (ListBlock listBlock : listBlocks) {
+                invertedList.add(listBlock.docId);
+            }
             invertedListsForTest.put(wordBlock.word, invertedList);
         }
 

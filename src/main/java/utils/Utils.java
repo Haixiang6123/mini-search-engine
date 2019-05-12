@@ -1,5 +1,6 @@
 package utils;
 
+import edu.uci.ics.cs221.inverted.ListBlock;
 import edu.uci.ics.cs221.inverted.MergedWordBlock;
 import edu.uci.ics.cs221.inverted.WordBlock;
 import edu.uci.ics.cs221.storage.Document;
@@ -161,10 +162,9 @@ public class Utils {
         file.renameTo(tempFile);
     }
 
-    public static void increaseDocId(int baseDocSize, List<Integer> documentIds) {
-        for (int i = 0; i < documentIds.size(); i++) {
-            int d = baseDocSize + documentIds.get(i);
-            documentIds.set(i, d);
+    public static void increaseDocId(int baseDocSize, List<ListBlock> listBlocks) {
+        for (ListBlock listBlock : listBlocks) {
+            listBlock.docId = baseDocSize + listBlock.docId;
         }
     }
 
