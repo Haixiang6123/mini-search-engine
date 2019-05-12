@@ -2,6 +2,7 @@ package utils;
 
 import edu.uci.ics.cs221.inverted.MergedWordBlock;
 import edu.uci.ics.cs221.inverted.WordBlock;
+import edu.uci.ics.cs221.storage.Document;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -116,7 +117,7 @@ public class Utils {
         List<T> list = new ArrayList<T>();
 
         for (T t : list1) {
-            if(list2.contains(t)) {
+            if (list2.contains(t)) {
                 list.add(t);
             }
         }
@@ -165,5 +166,23 @@ public class Utils {
             int d = baseDocSize + documentIds.get(i);
             documentIds.set(i, d);
         }
+    }
+
+    public static List<Integer> getPositions(Document document, String keyword) {
+        List<Integer> positionList = new ArrayList<>();
+        if (keyword == null || keyword.equals("")) {
+            return positionList;
+        }
+
+        String text = document.getText();
+        int index = text.indexOf("the");
+        while (index >= 0) {
+            index = text.indexOf("the", index + 1);
+            if (index > 0) {
+                positionList.add(index);
+            }
+        }
+
+        return positionList;
     }
 }
