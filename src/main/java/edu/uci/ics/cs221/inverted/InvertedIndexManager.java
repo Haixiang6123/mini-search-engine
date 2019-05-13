@@ -1,6 +1,7 @@
 package edu.uci.ics.cs221.inverted;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
@@ -1029,12 +1030,26 @@ public class InvertedIndexManager {
 
         List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
 
+        Table<String, Integer, List<Integer>> positionListTable = HashBasedTable.create();
+
         for (WordBlock wordBlock : wordBlocks) {
             List<ListBlock> listBlocks = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
             List<Integer> invertedList = new ArrayList<>();
             for (ListBlock listBlock : listBlocks) {
+                int page = listBlock.listsPageNum;
+                ByteBuffer byteBuffer = posFileChannel.readPage(page);
+                List<Integer> positionList = new ArrayList<>();
+                for (int i = 0; i < listBlock.listLength; i++) {
+                    if (byteBuffer.position() >= byteBuffer.capacity()) {
+                        page += 1;
+                        byteBuffer = posFileChannel.readPage(page);
+                    }
+                    positionList.add(byteBuffer.getInt());
+                }
+                // Inverted list
                 invertedList.add(listBlock.docId);
-
+                // Position list table
+                positionListTable.put(wordBlock.word, listBlock.docId, positionList);
             }
             invertedListsForTest.put(wordBlock.word, invertedList);
         }
@@ -1042,6 +1057,6 @@ public class InvertedIndexManager {
         // Get documents
         Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
 
-        return null;
+        return new PositionalIndexSegmentForTest(invertedListsForTest, documentsForTest, positionListTable);
     }
 }
