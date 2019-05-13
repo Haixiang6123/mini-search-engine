@@ -1,6 +1,7 @@
 package edu.uci.ics.cs221.inverted;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
@@ -1020,6 +1021,27 @@ public class InvertedIndexManager {
      * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
      */
     public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
-        throw new UnsupportedOperationException();
+        PageFileChannel listsFileChannel = this.getSegmentChannel(segmentNum, "lists");
+        PageFileChannel wordsFileChannel = this.getSegmentChannel(segmentNum, "words");
+        PageFileChannel posFileChannel = this.getSegmentChannel(segmentNum, "positions");
+
+        Map<String, List<Integer>> invertedListsForTest = new HashMap<>();
+
+        List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
+
+        for (WordBlock wordBlock : wordBlocks) {
+            List<ListBlock> listBlocks = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
+            List<Integer> invertedList = new ArrayList<>();
+            for (ListBlock listBlock : listBlocks) {
+                invertedList.add(listBlock.docId);
+
+            }
+            invertedListsForTest.put(wordBlock.word, invertedList);
+        }
+
+        // Get documents
+        Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
+
+        return null;
     }
 }
