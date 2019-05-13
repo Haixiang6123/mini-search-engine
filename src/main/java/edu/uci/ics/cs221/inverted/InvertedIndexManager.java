@@ -726,8 +726,7 @@ public class InvertedIndexManager {
             i++;
         }
 
-        return doc.iterator();  //todo iterator for docStore?
-
+        return doc.iterator();
     }
 
     /**

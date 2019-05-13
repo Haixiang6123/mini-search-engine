@@ -84,8 +84,5 @@ public class DeltaVarLenCompressor implements Compressor {
         }
 
         return result;
-
-
-        //throw new UnsupportedOperationException();
     }
 }
