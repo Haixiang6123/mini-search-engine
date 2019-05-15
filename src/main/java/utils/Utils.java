@@ -174,11 +174,11 @@ public class Utils {
             return positionList;
         }
 
-        String text = document.getText();
-        int index = text.indexOf(keyword);
-        while (index >= 0) {
-            positionList.add(index);
-            index = text.indexOf(keyword, index + 1);
+        String[] texts = document.getText().split(" ");
+        for (int i = 0; i < texts.length; i++) {
+            if (texts[i].equals(keyword)) {
+                positionList.add(i);
+            }
         }
 
         return positionList;
