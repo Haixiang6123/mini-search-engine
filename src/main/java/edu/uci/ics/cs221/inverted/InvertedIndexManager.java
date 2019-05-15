@@ -189,7 +189,6 @@ public class InvertedIndexManager {
             List<Integer> positionList = Utils.getPositions(this.documents.get(id), wordBlock.word);
 
             // Flushing a document ID block
-            // TODO: Check if it's correct for flushing position list
             // ID
             listsBuffer.putInt(id);
             // Position list page num

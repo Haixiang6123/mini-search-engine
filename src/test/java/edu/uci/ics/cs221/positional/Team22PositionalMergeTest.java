@@ -147,7 +147,6 @@ public class Team22PositionalMergeTest {
         for (Document d: docs){
             assertTrue(segDoc.containsValue(d));
         }
-
     }
     /*
     This test case check whether index manager manually merge the segment and
@@ -185,7 +184,6 @@ public class Team22PositionalMergeTest {
         checkSegment(0, seg1Docs);
         // check positional index
         checkPositional(0, seg1Docs);
-
     }
 
     /*
