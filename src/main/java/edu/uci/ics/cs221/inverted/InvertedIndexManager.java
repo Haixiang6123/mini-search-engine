@@ -195,7 +195,7 @@ public class InvertedIndexManager {
             // Position list page num
             listsBuffer.putInt(meta.positionPageNum);
             // Position list offset
-            listsBuffer.putInt(meta.positionPageOffset);
+            listsBuffer.putInt(posBuffer.position());
             // Position list length
             listsBuffer.putInt(positionList.size());
 
@@ -274,7 +274,7 @@ public class InvertedIndexManager {
 
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
-        PageFileChannel positionChannel = this.getSegmentChannel(this.numSegments, "position");
+        PageFileChannel positionChannel = this.getSegmentChannel(this.numSegments, "positions");
         WriteMeta meta = new WriteMeta();
 
         for (String word : this.invertedLists.keySet()) {
@@ -1038,6 +1038,8 @@ public class InvertedIndexManager {
                 int page = listBlock.listsPageNum;
                 ByteBuffer byteBuffer = posFileChannel.readPage(page);
                 List<Integer> positionList = new ArrayList<>();
+                // Move to position offset
+                byteBuffer.position(listBlock.listOffset);
                 for (int i = 0; i < listBlock.listLength; i++) {
                     if (byteBuffer.position() >= byteBuffer.capacity()) {
                         page += 1;
@@ -1056,6 +1058,7 @@ public class InvertedIndexManager {
         // Get documents
         Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
 
-        return new PositionalIndexSegmentForTest(invertedListsForTest, documentsForTest, positionListTable);
+        return documentsForTest.size() != 0 ?
+                new PositionalIndexSegmentForTest(invertedListsForTest, documentsForTest, positionListTable) : null;
     }
 }

@@ -175,12 +175,10 @@ public class Utils {
         }
 
         String text = document.getText();
-        int index = text.indexOf("the");
+        int index = text.indexOf(keyword);
         while (index >= 0) {
-            index = text.indexOf("the", index + 1);
-            if (index > 0) {
-                positionList.add(index);
-            }
+            positionList.add(index);
+            index = text.indexOf(keyword, index + 1);
         }
 
         return positionList;
