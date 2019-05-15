@@ -395,18 +395,14 @@ public class InvertedIndexManager {
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
                         this.mergeWordAndList(
-                                newSegListsChannel, newSegWordsChannel,
-                                newSegPosChannel,
+                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                leftInvertedList, leftWordBlock,
-                                meta);
+                                leftInvertedList, leftWordBlock, meta);
                     } else {
                         this.mergeWordAndList(
-                                newSegListsChannel, newSegWordsChannel,
-                                newSegPosChannel,
+                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                rightInvertedList, rightWordBlock,
-                                meta);
+                                rightInvertedList, rightWordBlock, meta);
                     }
                 } else {
                     List<ListBlock> localInvertedList = new ArrayList<>();
@@ -415,13 +411,10 @@ public class InvertedIndexManager {
                     // Update list length in word block
                     leftWordBlock.listLength += rightWordBlock.listLength;
                     this.mergeWordAndList(
-                            newSegListsChannel, newSegWordsChannel,
-                            newSegPosChannel,
+                            newSegListsChannel, newSegWordsChannel, newSegPosChannel,
                             this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                            localInvertedList, leftWordBlock,
-                            meta);
+                            localInvertedList, leftWordBlock, meta);
                 }
-
             }
 
             // Write remaining content from buffer
@@ -465,8 +458,7 @@ public class InvertedIndexManager {
     /**
      * Merge word block and list
      */
-    private void mergeWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel,
-                                  PageFileChannel posChannel,
+    private void mergeWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel, PageFileChannel posChannel,
                                   ByteBuffer listsBuffer, ByteBuffer wordsBuffer, ByteBuffer posBuffer,
                                   List<ListBlock> invertedList, WordBlock wordBlock, WriteMeta meta) {
         // Update word block
@@ -493,13 +485,16 @@ public class InvertedIndexManager {
             // Position list page num
             listsBuffer.putInt(listBlock.listsPageNum);
             // Offset
-            listsBuffer.putInt(listBlock.listOffset);
+            listsBuffer.putInt(posBuffer.position());
             // Length
             listsBuffer.putInt(listBlock.listLength);
 
+            // Open read position list channel
+            PageFileChannel readPosChannel = this.getSegmentChannel(listBlock.segment, "positions");
             // Get position list
             int page = listBlock.listsPageNum;
-            ByteBuffer byteBuffer = posChannel.readPage(page);
+            ByteBuffer readPosBuffer = readPosChannel.readPage(page);
+            readPosBuffer.position(listBlock.listOffset);
             for (int i = 0; i < listBlock.listLength; i++) {
                 if (posBuffer.position() >= posBuffer.capacity()) {
                     // Write it to segment
@@ -509,13 +504,16 @@ public class InvertedIndexManager {
                     // Clear buffer
                     posBuffer.clear();
                 }
-                if (byteBuffer.position() >= byteBuffer.capacity()) {
-                    byteBuffer = posChannel.readPage(++page);
+                if (readPosBuffer.position() >= readPosBuffer.capacity()) {
+                    page += 1;
+                    readPosBuffer = readPosChannel.readPage(page);
                 }
                 // Index
-                posBuffer.putInt(byteBuffer.getInt());
+                posBuffer.putInt(readPosBuffer.getInt());
             }
-            posChannel.writePage(meta.positionPageNum, posBuffer);
+
+            // Close read channel
+            readPosChannel.close();
         }
     }
 
@@ -651,6 +649,7 @@ public class InvertedIndexManager {
                     listsByteBuffer.getInt(), // Offset
                     listsByteBuffer.getInt()  // Length
             );
+            listBlock.segment = wordBlock.segment;
             invertedList.add(listBlock);
         }
         return invertedList;
