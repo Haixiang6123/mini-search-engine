@@ -74,10 +74,12 @@ public class InvertedIndexManager {
         // Flush variables init
         this.flushListsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.flushWordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.flushPosBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.flushWordsBuffer.putInt(0);
         // Merge variables init
         this.mergeListsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.mergeWordsBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
+        this.mergePosBuffer = ByteBuffer.allocate(PageFileChannel.PAGE_SIZE);
         this.mergeWordsBuffer.putInt(0);
     }
 
