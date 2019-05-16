@@ -55,9 +55,11 @@ public class InvertedIndexManager {
     // Flush variables
     private ByteBuffer flushWordsBuffer = null;
     private ByteBuffer flushListsBuffer = null;
+    private ByteBuffer flushPosBuffer = null;
     // Merge variables
     private ByteBuffer mergeWordsBuffer = null;
     private ByteBuffer mergeListsBuffer = null;
+    private ByteBuffer mergePosBuffer = null;
     // In memory documents
     private Map<Integer, Document> documents = null;
     // Deleted documents
