@@ -64,6 +64,8 @@ public class InvertedIndexManager {
     private Map<Integer, Document> documents = null;
     // Deleted documents
     private List<String> deletedWords = null;
+    // Compressor
+    private Compressor compressor = null;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -110,7 +112,11 @@ public class InvertedIndexManager {
      *
      */
     public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
-        throw new UnsupportedOperationException();
+        InvertedIndexManager manager = new InvertedIndexManager(indexFolder, analyzer);
+
+        manager.compressor = compressor;
+
+        return manager;
     }
 
     /**
