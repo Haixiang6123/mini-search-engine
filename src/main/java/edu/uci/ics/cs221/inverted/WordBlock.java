@@ -6,17 +6,17 @@ public class WordBlock {
     public int listsPageNum = 0;
     public int listOffset = 0;
     public int listLength = 0;
-    public int offsetOffset = 0;
+    public int globalOffsetLength = 0;
 
     public int segment = 0;
 
-    public WordBlock(int wordLength, String word, int listsPageNum, int listOffset, int listLength, int posOffset) {
+    public WordBlock(int wordLength, String word, int listsPageNum, int listOffset, int listLength, int globalOffsetLength) {
         this.wordLength = wordLength;
         this.word = word;
         this.listsPageNum = listsPageNum;
         this.listOffset = listOffset;
         this.listLength = listLength;
-        this.offsetOffset = posOffset;
+        this.globalOffsetLength = globalOffsetLength;
     }
 
     public int getWordBlockCapacity() {
@@ -30,7 +30,7 @@ public class WordBlock {
                 "ListsPageNum: " + this.listsPageNum + "; " +
                 "ListOffset: " + this.listOffset + "; " +
                 "ListLength: " + this.listLength + "; " +
-                "OffsetOffset: " + this.offsetOffset;
+                "GlobalOffsetLength: " + this.globalOffsetLength;
     }
 
     public boolean equals(Object object){
