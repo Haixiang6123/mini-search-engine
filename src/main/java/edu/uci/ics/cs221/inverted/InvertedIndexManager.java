@@ -167,53 +167,9 @@ public class InvertedIndexManager {
     }
 
     /**
-     * Flush a list
-     */
-    private void flushList(DocumentStore documentStore,
-                           PageFileChannel listsChannel, PageFileChannel posChannel,
-                           ByteBuffer listsBuffer, ByteBuffer posBuffer, List<Integer> invertedList, WriteMeta meta) {
-        for (Integer id : invertedList) {
-            if (listsBuffer.position() >= listsBuffer.capacity()) {
-                // Write it to segment
-                listsChannel.writePage(meta.listsPageNum, listsBuffer);
-                // Update meta
-                meta.listsPageNum += 1;
-                // Clear buffer
-                listsBuffer.clear();
-            }
-
-            // Flush document Id
-            listsBuffer.putInt(id);
-        }
-    }
-
-    /**
      * Flush a word
      */
     private void flushWord(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, byte[] invertedListBytes, WriteMeta meta) {
-        int wordBlockCapacity = wordBlock.getWordBlockCapacity();
-        // Exceed capacity
-        if (wordsBuffer.position() + wordBlockCapacity >= wordsBuffer.capacity()) {
-            // Add total size of this page to the front
-            wordsBuffer.putInt(0, wordsBuffer.position());
-            // Write to file
-            wordsChannel.writePage(meta.wordsPageNum, wordsBuffer);
-            // Increment total words page num
-            meta.wordsPageNum += 1;
-            // Allocate a new buffer
-            wordsBuffer.clear();
-            // Initialize words page num
-            wordsBuffer.putInt(0);
-        }
-
-        // Word Block
-        wordsBuffer
-                .putInt(wordBlock.wordLength) // Word length
-                .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
-                .putInt(wordBlock.listsPageNum) // Page num
-                .putInt(wordBlock.listOffset) // Offset
-                .putInt(wordBlock.listLength) // List len gth
-                .putInt(wordBlock.offsetOffset); // Pos Offset
     }
 
     private boolean isFlushValid() {
@@ -460,13 +416,49 @@ public class InvertedIndexManager {
         wordBlock.listOffset = listsBuffer.position();
 
         // Encode inverted list
-        byte[] invertedListBytes = this.compressor.encode(invertedList);
-
-        // Write word block to segment
-        this.flushWord(wordsChannel, wordsBuffer, wordBlock, invertedListBytes, meta);
+//        byte[] invertedListBytes = this.compressor.encode(invertedList);
 
         // Write inverted list to segment
-        this.flushList(documentStore, listsChannel, posChannel, listsBuffer, posBuffer, invertedList, meta);
+        for (Integer id : invertedList) {
+//            List<Integer> positions = Utils.getPositions(documentStore.getDocument(id), wordBlock.word);
+
+            if (listsBuffer.position() >= listsBuffer.capacity()) {
+                // Write it to segment
+                listsChannel.writePage(meta.listsPageNum, listsBuffer);
+                // Update meta
+                meta.listsPageNum += 1;
+                // Clear buffer
+                listsBuffer.clear();
+            }
+
+            // Flush document Id
+            listsBuffer.putInt(id);
+        }
+
+        // Write word block to segment
+        int wordBlockCapacity = wordBlock.getWordBlockCapacity();
+        // Exceed capacity
+        if (wordsBuffer.position() + wordBlockCapacity >= wordsBuffer.capacity()) {
+            // Add total size of this page to the front
+            wordsBuffer.putInt(0, wordsBuffer.position());
+            // Write to file
+            wordsChannel.writePage(meta.wordsPageNum, wordsBuffer);
+            // Increment total words page num
+            meta.wordsPageNum += 1;
+            // Allocate a new buffer
+            wordsBuffer.clear();
+            // Initialize words page num
+            wordsBuffer.putInt(0);
+        }
+
+        // Word Block
+        wordsBuffer
+                .putInt(wordBlock.wordLength) // Word length
+                .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
+                .putInt(wordBlock.listsPageNum) // Page num
+                .putInt(wordBlock.listOffset) // Offset
+                .putInt(wordBlock.listLength) // List len gth
+                .putInt(wordBlock.offsetOffset); // Pos Offset
     }
 
     /**
