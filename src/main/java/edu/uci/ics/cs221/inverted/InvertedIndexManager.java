@@ -224,8 +224,6 @@ public class InvertedIndexManager {
         for (int id = 0; id < this.documents.size(); id++) {
             this.documentStore.addDocument(id, this.documents.get(id));
         }
-        this.documentStore.close();
-        this.documentStore = null;
     }
 
     /**
@@ -281,6 +279,10 @@ public class InvertedIndexManager {
         this.invertedLists.clear();
         this.documents.clear();
 
+        // Close document store
+        this.documentStore.close();
+        this.documentStore = null;
+
         // Increment segment number
         this.numSegments += 1;
 
@@ -335,6 +337,10 @@ public class InvertedIndexManager {
             PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words");
             PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists");
             PageFileChannel rightSegPosChannel = this.getSegmentChannel(rightIndex, "positions");
+            // Document store
+            DocumentStore leftDocStore = this.getDocumentStore(leftIndex, "");
+            DocumentStore rightDocStore = this.getDocumentStore(rightIndex, "");
+            DocumentStore newDocStore = this.getDocumentStore(newIndex, "new");
 
             // Get word blocks from left and right segment
             List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftSegWordsChannel, leftIndex);
@@ -344,7 +350,7 @@ public class InvertedIndexManager {
             List<MergedWordBlock> mergedWordBlocks = Utils.mergeWordBlocks(leftWordBlocks, rightWordBlocks, this.deletedWords);
 
             // Document store
-            int baseDocSize = this.mergeDocStores(leftIndex, rightIndex);
+            int baseDocSize = this.mergeDocStores(leftDocStore, rightDocStore, newDocStore);
 
             for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
                 WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
@@ -402,6 +408,10 @@ public class InvertedIndexManager {
             rightSegListsChannel.close();
             rightSegWordsChannel.close();
             rightSegPosChannel.close();
+            // Close document stores
+            leftDocStore.close();
+            rightDocStore.close();
+            newDocStore.close();
 
             // Delete origin files
             (new File(this.basePath.resolve("segment" + leftIndex + "_words").toString())).delete();
@@ -410,10 +420,14 @@ public class InvertedIndexManager {
             (new File(this.basePath.resolve("segment" + rightIndex + "_words").toString())).delete();
             (new File(this.basePath.resolve("segment" + rightIndex + "_lists").toString())).delete();
             (new File(this.basePath.resolve("segment" + rightIndex + "_positions").toString())).delete();
+            // Delete origin document store files
+            (new File(this.basePath.resolve("store" + leftIndex + "_").toString())).delete();
+            (new File(this.basePath.resolve("store" + rightIndex + "_").toString())).delete();
             // Rename current 2 segments
             Utils.renameSegment(this.basePath, newIndex, "words_new", "words");
             Utils.renameSegment(this.basePath, newIndex, "lists_new", "lists");
             Utils.renameSegment(this.basePath, newIndex, "positions_new", "positions");
+            Utils.renameStore(this.basePath, newIndex, "new", "");
 
             // Reset buffers
             this.resetMergeBuffers();
@@ -444,12 +458,8 @@ public class InvertedIndexManager {
     /**
      * Method to merge right document store to left document store
      */
-    private int mergeDocStores(int leftIndex, int rightIndex) {
-        int newIndex = leftIndex / 2;
+    private int mergeDocStores(DocumentStore leftDocStore, DocumentStore rightDocStore, DocumentStore newDocStore) {
         // Rename document store file
-        DocumentStore leftDocStore = this.getDocumentStore(leftIndex, "");
-        DocumentStore rightDocStore = this.getDocumentStore(rightIndex, "");
-        DocumentStore newDocStore = this.getDocumentStore(newIndex, "new");
         // Get left doc store size
         int baseDocSize = (int) leftDocStore.size();
 
@@ -469,14 +479,6 @@ public class InvertedIndexManager {
             // Update right documents ID and add it to left document store
             newDocStore.addDocument(baseDocSize + entry.getKey(), entry.getValue());
         }
-        // Close document stores
-        leftDocStore.close();
-        rightDocStore.close();
-        newDocStore.close();
-        // Delete origin document store files
-        (new File(this.basePath.resolve("store" + leftIndex + "_").toString())).delete();
-        (new File(this.basePath.resolve("store" + rightIndex + "_").toString())).delete();
-        Utils.renameStore(this.basePath, newIndex, "new", "");
 
         return baseDocSize;
     }
