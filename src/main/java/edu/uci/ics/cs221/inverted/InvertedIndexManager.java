@@ -208,7 +208,8 @@ public class InvertedIndexManager {
                 .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
-                .putInt(wordBlock.listLength); // List length
+                .putInt(wordBlock.listLength) // List length
+                .putInt(wordBlock.posOffset); // Pos Offset
     }
 
     private boolean isFlushValid() {
@@ -253,7 +254,8 @@ public class InvertedIndexManager {
                     word,                   // Word
                     meta.listsPageNum,           // Lists page num
                     meta.listsPageOffset, // List offset
-                    documentIds.size()      // List length
+                    documentIds.size(),      // List length
+                    meta.listsPageNum * PageFileChannel.PAGE_SIZE + this.flushListsBuffer.position()
             );
 
             // Flush word and list
@@ -520,7 +522,8 @@ public class InvertedIndexManager {
                         Utils.sliceStringFromBuffer(wordsBuffer, wordsBuffer.position(), wordLength), // Word
                         wordsBuffer.getInt(), // Lists page num
                         wordsBuffer.getInt(),  // List offset
-                        wordsBuffer.getInt()   // List length
+                        wordsBuffer.getInt(),   // List length
+                        wordsBuffer.getInt()
                 );
                 wordBlock.segment = segmentIndex;
                 wordBlocks.add(wordBlock);
