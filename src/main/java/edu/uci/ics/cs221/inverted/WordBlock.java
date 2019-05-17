@@ -1,15 +1,12 @@
 package edu.uci.ics.cs221.inverted;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class WordBlock {
     public int wordLength = 0;
     public String word = "";
     public int listsPageNum = 0;
     public int listOffset = 0;
     public int listLength = 0;
-    public int posOffset = 0;
+    public int offsetOffset = 0;
 
     public int segment = 0;
 
@@ -19,7 +16,7 @@ public class WordBlock {
         this.listsPageNum = listsPageNum;
         this.listOffset = listOffset;
         this.listLength = listLength;
-        this.posOffset = posOffset;
+        this.offsetOffset = posOffset;
     }
 
     public int getWordBlockCapacity() {
@@ -33,7 +30,7 @@ public class WordBlock {
                 "ListsPageNum: " + this.listsPageNum + "; " +
                 "ListOffset: " + this.listOffset + "; " +
                 "ListLength: " + this.listLength + "; " +
-                "PosOffset: " + this.posOffset;
+                "OffsetOffset: " + this.offsetOffset;
     }
 
     public boolean equals(Object object){

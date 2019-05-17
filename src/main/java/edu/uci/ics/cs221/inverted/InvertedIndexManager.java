@@ -169,7 +169,14 @@ public class InvertedIndexManager {
     /**
      * Flush a list
      */
-    private void flushList(PageFileChannel listsChannel, ByteBuffer listsBuffer, List<Integer> invertedList, WriteMeta meta) {
+    private void flushList(DocumentStore documentStore,
+                           PageFileChannel listsChannel, PageFileChannel posChannel,
+                           ByteBuffer listsBuffer, ByteBuffer posBuffer, List<Integer> invertedList, WriteMeta meta) {
+        // Encode doc Id
+//        byte[] docIdBytes = this.compressor.encode(invertedList);
+
+//        for (int i = 0; i < docIdBytes.length; i++) {
+//        }
         for (Integer id : invertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
                 // Write it to segment
@@ -179,6 +186,8 @@ public class InvertedIndexManager {
                 // Clear buffer
                 listsBuffer.clear();
             }
+
+            // Flush document Id
             listsBuffer.putInt(id);
         }
     }
@@ -209,7 +218,7 @@ public class InvertedIndexManager {
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
                 .putInt(wordBlock.listLength) // List length
-                .putInt(wordBlock.posOffset); // Pos Offset
+                .putInt(wordBlock.offsetOffset); // Pos Offset
     }
 
     private boolean isFlushValid() {
@@ -260,8 +269,9 @@ public class InvertedIndexManager {
 
             // Flush word and list
             this.flushWordAndList(
-                    listsChannel, wordsChannel,
-                    this.flushListsBuffer, this.flushWordsBuffer,
+                    this.documentStore,
+                    listsChannel, wordsChannel, posChannel,
+                    this.flushListsBuffer, this.flushWordsBuffer, this.flushPosBuffer,
                     documentIds, wordBlock,
                     meta);
         }
@@ -369,14 +379,16 @@ public class InvertedIndexManager {
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
                         this.flushWordAndList(
-                                newSegListsChannel, newSegWordsChannel,
-                                this.mergeListsBuffer, this.mergeWordsBuffer,
+                                newDocStore,
+                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
+                                this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
                                 leftInvertedList, leftWordBlock,
                                 meta);
                     } else {
                         this.flushWordAndList(
-                                newSegListsChannel, newSegWordsChannel,
-                                this.mergeListsBuffer, this.mergeWordsBuffer,
+                                newDocStore,
+                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
+                                this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
                                 rightInvertedList, rightWordBlock,
                                 meta);
                     }
@@ -387,8 +399,9 @@ public class InvertedIndexManager {
                     // Update list length in word block
                     leftWordBlock.listLength += rightWordBlock.listLength;
                     this.flushWordAndList(
-                            newSegListsChannel, newSegWordsChannel,
-                            this.mergeListsBuffer, this.mergeWordsBuffer,
+                            newDocStore,
+                            newSegListsChannel, newSegWordsChannel, newSegPosChannel,
+                            this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
                             localInvertedList, leftWordBlock,
                             meta);
                 }
@@ -443,8 +456,9 @@ public class InvertedIndexManager {
     /**
      * Flush word block and list
      */
-    private void flushWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel,
-                                  ByteBuffer listsBuffer, ByteBuffer wordsBuffer,
+    private void flushWordAndList(DocumentStore documentStore,
+                                  PageFileChannel listsChannel, PageFileChannel wordsChannel, PageFileChannel posChannel,
+                                  ByteBuffer listsBuffer, ByteBuffer wordsBuffer, ByteBuffer posBuffer,
                                   List<Integer> invertedList, WordBlock wordBlock, WriteMeta meta) {
         // Update word block
         wordBlock.listsPageNum = meta.listsPageNum;
@@ -454,7 +468,7 @@ public class InvertedIndexManager {
         this.flushWord(wordsChannel, wordsBuffer, wordBlock, meta);
 
         // Write inverted list to segment
-        this.flushList(listsChannel, listsBuffer, invertedList, meta);
+        this.flushList(documentStore, listsChannel, posChannel, listsBuffer, posBuffer, invertedList, meta);
     }
 
     /**
@@ -523,7 +537,7 @@ public class InvertedIndexManager {
                         wordsBuffer.getInt(), // Lists page num
                         wordsBuffer.getInt(),  // List offset
                         wordsBuffer.getInt(),   // List length
-                        wordsBuffer.getInt()
+                        wordsBuffer.getInt()   // Pos offset
                 );
                 wordBlock.segment = segmentIndex;
                 wordBlocks.add(wordBlock);
