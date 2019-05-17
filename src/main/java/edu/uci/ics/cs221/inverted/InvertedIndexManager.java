@@ -154,7 +154,7 @@ public class InvertedIndexManager {
                 // Create a new list
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
             } else {
-                // Add to exist list    // todo: handle repeated word in same file; make sure a file will be recorded only once
+                // Add to exist list
                 if(!documentIds.contains(newDocId))
                     documentIds.add(newDocId);
             }
@@ -242,6 +242,7 @@ public class InvertedIndexManager {
 
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
+        PageFileChannel posChannel = this.getSegmentChannel(this.numSegments, "posChannel");
         WriteMeta meta = new WriteMeta();
 
         for (String word : this.invertedLists.keySet()) {
@@ -272,6 +273,7 @@ public class InvertedIndexManager {
 
         listsChannel.close();
         wordsChannel.close();
+        posChannel.close();
 
         // Reset Buffers
         this.resetFlushBuffers();
@@ -295,6 +297,7 @@ public class InvertedIndexManager {
         // Reset buffers
         this.flushListsBuffer.clear();
         this.flushWordsBuffer.clear();
+        this.flushPosBuffer.clear();
         // Initialize words page num
         this.flushWordsBuffer.putInt(0);
     }
@@ -306,6 +309,7 @@ public class InvertedIndexManager {
         // Reset buffers
         this.mergeListsBuffer.clear();
         this.mergeWordsBuffer.clear();
+        this.mergePosBuffer.clear();
         // Initialize words page num
         this.mergeWordsBuffer.putInt(0);
     }
@@ -323,11 +327,14 @@ public class InvertedIndexManager {
             // New segment channels
             PageFileChannel newSegWordsChannel = this.getSegmentChannel(newIndex, "words_new");
             PageFileChannel newSegListsChannel = this.getSegmentChannel(newIndex, "lists_new");
+            PageFileChannel newSegPosChannel = this.getSegmentChannel(newIndex, "positions_new");
             // Original channels
             PageFileChannel leftSegWordsChannel = this.getSegmentChannel(leftIndex, "words");
             PageFileChannel leftSegListsChannel = this.getSegmentChannel(leftIndex, "lists");
+            PageFileChannel leftSegPosChannel = this.getSegmentChannel(leftIndex, "positions");
             PageFileChannel rightSegWordsChannel = this.getSegmentChannel(rightIndex, "words");
             PageFileChannel rightSegListsChannel = this.getSegmentChannel(rightIndex, "lists");
+            PageFileChannel rightSegPosChannel = this.getSegmentChannel(rightIndex, "positions");
 
             // Get word blocks from left and right segment
             List<WordBlock> leftWordBlocks = this.getWordBlocksFromSegment(leftSegWordsChannel, leftIndex);
@@ -388,19 +395,25 @@ public class InvertedIndexManager {
             // Close channels
             newSegListsChannel.close();
             newSegWordsChannel.close();
+            newSegPosChannel.close();
             leftSegListsChannel.close();
             leftSegWordsChannel.close();
+            leftSegPosChannel.close();
             rightSegListsChannel.close();
             rightSegWordsChannel.close();
+            rightSegPosChannel.close();
 
             // Delete origin files
             (new File(this.basePath.resolve("segment" + leftIndex + "_words").toString())).delete();
             (new File(this.basePath.resolve("segment" + leftIndex + "_lists").toString())).delete();
+            (new File(this.basePath.resolve("segment" + leftIndex + "_positions").toString())).delete();
             (new File(this.basePath.resolve("segment" + rightIndex + "_words").toString())).delete();
             (new File(this.basePath.resolve("segment" + rightIndex + "_lists").toString())).delete();
+            (new File(this.basePath.resolve("segment" + rightIndex + "_positions").toString())).delete();
             // Rename current 2 segments
             Utils.renameSegment(this.basePath, newIndex, "words_new", "words");
             Utils.renameSegment(this.basePath, newIndex, "lists_new", "lists");
+            Utils.renameSegment(this.basePath, newIndex, "positions_new", "positions");
 
             // Reset buffers
             this.resetMergeBuffers();
