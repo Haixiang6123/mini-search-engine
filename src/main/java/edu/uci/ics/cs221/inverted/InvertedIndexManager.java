@@ -1,6 +1,8 @@
 package edu.uci.ics.cs221.inverted;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
@@ -318,35 +320,35 @@ public class InvertedIndexManager {
             for (MergedWordBlock mergedWordBlock : mergedWordBlocks) {
                 WordBlock leftWordBlock = mergedWordBlock.leftWordBlock;
                 WordBlock rightWordBlock = mergedWordBlock.rightWordBlock;
-                List<Integer> leftInvertedList = this.getInvertedListFromSegment(
+                ListBlock leftListBlock = this.getListBlockFromSegment(
                         leftSegListsChannel,
                         leftWordBlock
                 );
-                List<Integer> rightInvertedList = this.getInvertedListFromSegment(
+                ListBlock rightListBlock = this.getListBlockFromSegment(
                         rightSegListsChannel,
                         rightWordBlock
                 );
-                Utils.increaseDocId(baseDocSize, rightInvertedList);
+                Utils.increaseDocId(baseDocSize, leftListBlock.invertedList);
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
                         this.flushWordAndList(
                                 newDocStore,
                                 newSegListsChannel, newSegWordsChannel, newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                leftInvertedList, leftWordBlock,
+                                leftListBlock.invertedList, leftWordBlock,
                                 meta);
                     } else {
                         this.flushWordAndList(
                                 newDocStore,
                                 newSegListsChannel, newSegWordsChannel, newSegPosChannel,
                                 this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                rightInvertedList, rightWordBlock,
+                                rightListBlock.invertedList, rightWordBlock,
                                 meta);
                     }
                 } else {
                     List<Integer> localInvertedList = new ArrayList<>();
-                    localInvertedList.addAll(leftInvertedList);
-                    localInvertedList.addAll(rightInvertedList);
+                    localInvertedList.addAll(leftListBlock.invertedList);
+                    localInvertedList.addAll(rightListBlock.invertedList);
                     // Update list length in word block
                     leftWordBlock.listLength += rightWordBlock.listLength;
                     this.flushWordAndList(
@@ -560,7 +562,7 @@ public class InvertedIndexManager {
                         wordsBuffer.getInt(), // Lists page num
                         wordsBuffer.getInt(),  // List offset
                         wordsBuffer.getInt(),   // List length
-                        wordsBuffer.getInt()   // Pos offset
+                        wordsBuffer.getInt()   //  Global offset length
                 );
                 wordBlock.segment = segmentIndex;
                 wordBlocks.add(wordBlock);
@@ -573,16 +575,16 @@ public class InvertedIndexManager {
     /**
      * Get inverted list from segment
      */
-    private List<Integer> getInvertedListFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
-        List<Integer> invertedList = new ArrayList<>();
-        if (wordBlock == null) {
-            return invertedList;
-        }
+    private ListBlock getListBlockFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
+        // Init a new list block
+        ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength);
+
         // Get byte buffer
         int page = wordBlock.listsPageNum;
         ByteBuffer listsByteBuffer = listsFileChannel.readPage(page);
         // Move pointer to the offset
         listsByteBuffer.position(wordBlock.listOffset);
+
         // Extract the inverted list
         for (int i = 0; i < wordBlock.listLength; i++) {
             // Overflow -> span out pages
@@ -590,9 +592,24 @@ public class InvertedIndexManager {
                 page += 1;
                 listsByteBuffer = listsFileChannel.readPage(page);
             }
-            invertedList.add(listsByteBuffer.getInt());
+            listBlock.encodedInvertedList[i] = listsByteBuffer.get();
         }
-        return invertedList;
+        // Decode inverted list
+        listBlock.invertedList = this.compressor.decode(listBlock.encodedInvertedList);
+
+        // Extract the global offset
+        for (int i = 0; i < wordBlock.globalOffsetLength; i++) {
+            // Overflow -> span out pages
+            if (listsByteBuffer.position() >= listsByteBuffer.capacity()) {
+                page += 1;
+                listsByteBuffer = listsFileChannel.readPage(page);
+            }
+            listBlock.encodedGlobalOffsets[i] = listsByteBuffer.get();
+        }
+        // Decode global offsets
+        listBlock.globalOffsets = this.compressor.decode(listBlock.encodedGlobalOffsets);
+
+        return listBlock;
     }
 
     /**
@@ -647,9 +664,9 @@ public class InvertedIndexManager {
                 filteredWords = this.filterDeletedWordBlocks(filteredWords);
 
                 for (WordBlock wordBlock : filteredWords) {
-                    List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    ListBlock listBlock = this.getListBlockFromSegment(listChannel, wordBlock);
 
-                    for (int docId : invertedList) {
+                    for (int docId : listBlock.invertedList) {
                         doc.add(documentStore.getDocument(docId));
                     }
                 }
@@ -720,10 +737,10 @@ public class InvertedIndexManager {
                 PageFileChannel listChannel = getSegmentChannel(i, "lists");
                 for (WordBlock wordBlock : filteredWordBlocks) {
                     // Get inverted list
-                    List<Integer> postList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    ListBlock listBlock = this.getListBlockFromSegment(listChannel, wordBlock);
 
                     if (intersection == null) {
-                        intersection = new ArrayList<>(postList);
+                        intersection = new ArrayList<>(listBlock.invertedList);
                     } else {
                         // Find intersection: by binary search
                         ArrayList<Integer> result = new ArrayList<>();
@@ -734,13 +751,13 @@ public class InvertedIndexManager {
                             while (left < right) {
                                 int mid = (left + right) / 2;
                                 //Integer comparision
-                                if (postList.get(mid).compareTo(target) < 0)
+                                if (listBlock.invertedList.get(mid).compareTo(target) < 0)
                                     left = mid + 1;
                                 else    //postList[mid] >= target
                                     right = mid;
                             }
                             // Equals: add the number to new ArrayList
-                            if (postList.get(right).compareTo(target) == 0) {
+                            if (listBlock.invertedList.get(right).compareTo(target) == 0) {
                                 result.add(target);
                                 lowbound = right + 1;   //raise the search range's lower bound
                             }
@@ -812,10 +829,10 @@ public class InvertedIndexManager {
                 PageFileChannel listChannel = this.getSegmentChannel(i, "lists");
                 for (WordBlock wordBlock : filteredWordBlocks) {
                     // Get inverted list
-                    List<Integer> invertedList = this.getInvertedListFromSegment(listChannel, wordBlock);
+                    ListBlock listBlock = this.getListBlockFromSegment(listChannel, wordBlock);
 
                     // Use set to do union
-                    union.addAll(invertedList);
+                    union.addAll(listBlock.invertedList);
                 }
 
                 // Retrieve the documents to List<Document>
@@ -912,8 +929,9 @@ public class InvertedIndexManager {
         List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
 
         for (WordBlock wordBlock : wordBlocks) {
-            List<Integer> invertedList = this.getInvertedListFromSegment(listsFileChannel, wordBlock);
-            invertedListsForTest.put(wordBlock.word, invertedList);
+            ListBlock listBlock = this.getListBlockFromSegment(listsFileChannel, wordBlock);
+
+            invertedListsForTest.put(wordBlock.word, listBlock.invertedList);
         }
 
         return invertedListsForTest;
@@ -946,6 +964,49 @@ public class InvertedIndexManager {
      * @return in-memory data structure with all contents in the index segment, null if segmentNum don't exist.
      */
     public PositionalIndexSegmentForTest getIndexSegmentPositional(int segmentNum) {
-        throw new UnsupportedOperationException();
+        PageFileChannel listsFileChannel = this.getSegmentChannel(segmentNum, "lists");
+        PageFileChannel wordsFileChannel = this.getSegmentChannel(segmentNum, "words");
+        PageFileChannel posFileChannel = this.getSegmentChannel(segmentNum, "positions");
+
+        // Get all word blocks
+        List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsFileChannel, segmentNum);
+
+        Map<String, List<Integer>> invertedListsForTest = new HashMap<>();
+        Table<String, Integer, List<Integer>> positionsListsForTest = HashBasedTable.create();
+
+        for (WordBlock wordBlock : wordBlocks) {
+            ListBlock listBlock = this.getListBlockFromSegment(listsFileChannel, wordBlock);
+            for (int i = 0; i < listBlock.invertedList.size(); i++) {
+                // Get document Id
+                int docId = listBlock.invertedList.get(i);
+                // Calculate position list meta
+                int globalOffset = listBlock.globalOffsets.get(i);
+                int pageNum = globalOffset / PageFileChannel.PAGE_SIZE;
+                int posOffset = globalOffset % PageFileChannel.PAGE_SIZE;
+                // Get position list length
+                int posLength = listBlock.globalOffsets.get(i + 1) - listBlock.globalOffsets.get(i);
+                // Get position list
+                byte[] encodedPositionList = new byte[posLength];
+                ByteBuffer posReadBuffer = posFileChannel.readPage(pageNum);
+                posReadBuffer.position(posOffset);
+                for (int j = 0; j < posLength; j++) {
+                    encodedPositionList[j] = posReadBuffer.get();
+                }
+                // Decode position list
+                List<Integer> positionList = this.compressor.decode(encodedPositionList);
+
+                // Add to table
+                positionsListsForTest.put(wordBlock.word, docId, positionList);
+            }
+        }
+
+        listsFileChannel.close();
+        wordsFileChannel.close();
+        posFileChannel.close();
+
+        Map<Integer, Document> documentsForTest = this.getDocumentsForTest(segmentNum);
+
+        return documentsForTest.size() != 0 ?
+                new PositionalIndexSegmentForTest(invertedListsForTest, documentsForTest, positionsListsForTest) : null;
     }
 }
