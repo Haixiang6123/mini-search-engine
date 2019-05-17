@@ -172,11 +172,6 @@ public class InvertedIndexManager {
     private void flushList(DocumentStore documentStore,
                            PageFileChannel listsChannel, PageFileChannel posChannel,
                            ByteBuffer listsBuffer, ByteBuffer posBuffer, List<Integer> invertedList, WriteMeta meta) {
-        // Encode doc Id
-//        byte[] docIdBytes = this.compressor.encode(invertedList);
-
-//        for (int i = 0; i < docIdBytes.length; i++) {
-//        }
         for (Integer id : invertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
                 // Write it to segment
@@ -195,7 +190,7 @@ public class InvertedIndexManager {
     /**
      * Flush a word
      */
-    private void flushWord(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, WriteMeta meta) {
+    private void flushWord(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, byte[] invertedListBytes, WriteMeta meta) {
         int wordBlockCapacity = wordBlock.getWordBlockCapacity();
         // Exceed capacity
         if (wordsBuffer.position() + wordBlockCapacity >= wordsBuffer.capacity()) {
@@ -217,7 +212,7 @@ public class InvertedIndexManager {
                 .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
-                .putInt(wordBlock.listLength) // List length
+                .putInt(wordBlock.listLength) // List len gth
                 .putInt(wordBlock.offsetOffset); // Pos Offset
     }
 
@@ -250,7 +245,7 @@ public class InvertedIndexManager {
 
         PageFileChannel listsChannel = this.getSegmentChannel(this.numSegments, "lists");
         PageFileChannel wordsChannel = this.getSegmentChannel(this.numSegments, "words");
-        PageFileChannel posChannel = this.getSegmentChannel(this.numSegments, "posChannel");
+        PageFileChannel posChannel = this.getSegmentChannel(this.numSegments, "positions");
         WriteMeta meta = new WriteMeta();
 
         for (String word : this.invertedLists.keySet()) {
@@ -464,8 +459,11 @@ public class InvertedIndexManager {
         wordBlock.listsPageNum = meta.listsPageNum;
         wordBlock.listOffset = listsBuffer.position();
 
+        // Encode inverted list
+        byte[] invertedListBytes = this.compressor.encode(invertedList);
+
         // Write word block to segment
-        this.flushWord(wordsChannel, wordsBuffer, wordBlock, meta);
+        this.flushWord(wordsChannel, wordsBuffer, wordBlock, invertedListBytes, meta);
 
         // Write inverted list to segment
         this.flushList(documentStore, listsChannel, posChannel, listsBuffer, posBuffer, invertedList, meta);
