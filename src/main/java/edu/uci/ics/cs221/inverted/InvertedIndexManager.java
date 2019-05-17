@@ -576,6 +576,9 @@ public class InvertedIndexManager {
      * Get inverted list from segment
      */
     private ListBlock getListBlockFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
+        if (wordBlock == null) {
+            return new ListBlock(0, 0);
+        }
         // Init a new list block
         ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength);
 
