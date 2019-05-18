@@ -3,6 +3,7 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
+import com.sun.javafx.image.IntPixelGetter;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
@@ -907,7 +908,7 @@ public class InvertedIndexManager {
      * Phrase search means the document must contain the consecutive sequence of keywords in exact order.
      *
      * You could assume the analyzer won't convert each keyword into multiple tokens.
-     * Throws UnsupportedOperationException if the inverted index is not a positional index.
+     * TODO: Throws UnsupportedOperationException if the inverted index is not a positional index.
      *
      * @param phrase, a consecutive sequence of keywords
      * @return a iterator of documents matching the query
@@ -915,7 +916,175 @@ public class InvertedIndexManager {
     public Iterator<Document> searchPhraseQuery(List<String> phrase) {
         Preconditions.checkNotNull(phrase);
 
-        throw new UnsupportedOperationException();
+        List<Document> documents = new ArrayList<>();
+
+        // Analyze phrase words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for (String keyword : phrase) {
+            List<String> result = this.analyzer.analyze(keyword);
+            if (result != null && result.size() > 0 && !result.get(0).equals(""))
+                analyzed.addAll(result);
+            else
+                return documents.iterator();
+        }
+
+        int i = 0;
+        //traverse all segments
+        while (true) {
+            if (!Files.exists(basePath.resolve("segment" + i + "_words"))) {
+                break;
+            } else {
+                //open docDB for this segment
+                DocumentStore documentStore = this.getDocumentStore(i, "");
+
+                // Read word list: only read those in analyzed lists
+                PageFileChannel wordsChannel = this.getSegmentChannel(i, "words");
+
+                // Get all word blocks
+                List<WordBlock> wordBlocks = this.getWordBlocksFromSegment(wordsChannel, i);
+
+                // Filter word blocks
+                List<WordBlock> filteredWordBlocks = this.filterWordBlock(wordBlocks, analyzed);
+                filteredWordBlocks = this.filterDeletedWordBlocks(filteredWordBlocks);
+
+                // And query exists some words not in this segment
+                if (filteredWordBlocks.size() != analyzed.size()) {
+                    documentStore.close();
+                    wordsChannel.close();
+                    i++;
+                    continue;
+                }
+
+                // 2. Use And Method to get a docID list
+                    // Retrieve the lists and merge with basic
+                    ArrayList<Integer> intersection = null;
+
+                    // Sort the words' list ; merge the list from short list to longer list
+                    filteredWordBlocks.sort(Comparator.comparingInt(o -> o.listLength));
+                    PageFileChannel listChannel = getSegmentChannel(i, "lists");
+                    for (WordBlock wordBlock : filteredWordBlocks) {
+                        // Get inverted list
+                        List<ListBlock> listBlocks = this.getInvertedListFromSegment(listChannel, wordBlock);
+                        List<Integer> invertedList = new ArrayList<>();
+                        for (ListBlock listBlock : listBlocks) {
+                            invertedList.add(listBlock.docId);
+                        }
+
+                        if (intersection == null) {
+                            intersection = new ArrayList<>(invertedList);
+                        } else {
+                            // Find intersection: by binary search
+                            ArrayList<Integer> result = new ArrayList<>();
+                            // Lowerbound for list being searched; the ids are sorted in posting list
+                            int lowbound = 0;
+                            for (Integer target : intersection) {
+                                int left = lowbound, right = wordBlock.listLength - 1;
+                                while (left < right) {
+                                    int mid = (left + right) / 2;
+                                    //Integer comparision
+                                    if (invertedList.get(mid).compareTo(target) < 0)
+                                        left = mid + 1;
+                                    else    //postList[mid] >= target
+                                        right = mid;
+                                }
+                                // Equals: add the number to new ArrayList
+                                if (invertedList.get(right).compareTo(target) == 0) {
+                                    result.add(target);
+                                    lowbound = right + 1;   //raise the search range's lower bound
+                                }
+                            }
+                            // Update intersection
+                            intersection = result;
+                        }
+                    }
+
+
+
+               // 3.  Use And docId to traverse words
+                if(intersection == null)
+                    return documents.iterator();
+
+                // Organize a mapping of word -> WordBlocks
+                Map<String, WordBlock> filteredWordBlocksMap = new HashMap<>();
+                for(WordBlock wordBlock: filteredWordBlocks){
+                    filteredWordBlocksMap.put(wordBlock.word, wordBlock);
+                }
+
+                List<Integer> phraseDocIds = new ArrayList<>();
+                for(Integer docId: intersection) {
+                    // Store current valid phrase positions
+                    List<Integer> validPosition = null;
+                    // For each word, find the docId's positional list
+                    for (String word : analyzed) {
+                        // todo: find offset list & find position of (this doc, this word) : Function for it.
+                        List<ListBlock> invertedList = this.getInvertedListFromSegment(listChannel, filteredWordBlocksMap.get(word));
+                        List<Integer> offsetList = new ArrayList<>();
+                        int index = invertedList.indexOf(docId);
+                        List<Integer> position = new ArrayList<>();
+
+                        // If no position ( which is impossible but just in case) return empty iterator
+                        if(position == null ||position.size() == 0)
+                            return documents.iterator();
+
+                        // Update validPosition
+                        if(validPosition == null)
+                            validPosition = new ArrayList<>(position);
+                        else{
+                            List<Integer> newValid = new ArrayList<>();
+                            int leftBound = 0;
+                            // find every pair of consecutive position
+                            for(int positionA: validPosition ){    // positionA : previous word
+                                // Binary search
+                                int left = leftBound , right = position.size() - 1;
+                                while(left < right)
+                                {
+                                    int mid = (left + right + 1)/2; //right bias
+                                    if(position.get(mid) <= positionA){
+                                        left = mid;
+                                    }
+                                    else {
+                                        right = mid - 1;
+                                    }
+                                }
+                                // Add valid position
+                                if(left == leftBound && position.get(left) ==  positionA + 1) {
+                                    newValid.add(position.get(left));
+                                    leftBound = left;
+                                }else if(left < position.size() - 1 && position.get(left + 1) == positionA + 1) {  //position.get(left) <= A
+                                    newValid.add(position.get(left + 1));
+                                    leftBound = left + 1;
+                                }else{
+                                    if(position.get(left) <= positionA)
+                                        leftBound += 1;
+                                }
+                            }
+                            // update the positions
+                            validPosition = newValid;
+                        }
+                        // Return when no valid position remains
+                        if(validPosition == null || validPosition.size() == 0)
+                            return documents.iterator();
+                    }
+                    if(validPosition != null || validPosition.size() > 0)
+                        phraseDocIds.add(docId);
+                }
+
+                //read doc
+                for (int docId : phraseDocIds) {
+                    documents.add(documentStore.getDocument(docId));
+                }
+
+                documentStore.close();
+                wordsChannel.close();
+                listChannel.close();
+            }
+            i++;
+        }
+
+        return documents.iterator();
+
+//        if(!isPositional)
+//          throw new UnsupportedOperationException();
     }
 
     /**
