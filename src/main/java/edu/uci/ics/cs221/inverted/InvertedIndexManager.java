@@ -323,7 +323,7 @@ public class InvertedIndexManager {
                         rightSegListsChannel,
                         rightWordBlock
                 );
-                Utils.increaseDocId(baseDocSize, leftListBlock.invertedList);
+                Utils.increaseDocId(baseDocSize, rightListBlock.invertedList);
                 if (mergedWordBlock.isSingle) {
                     if (leftWordBlock != null) {
                         this.flushWordAndList(
