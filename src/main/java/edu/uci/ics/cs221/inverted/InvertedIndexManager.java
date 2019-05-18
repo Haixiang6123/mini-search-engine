@@ -114,7 +114,7 @@ public class InvertedIndexManager {
      *
      */
     public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
-        InvertedIndexManager manager = new InvertedIndexManager(indexFolder, analyzer);
+        InvertedIndexManager manager = createOrOpen(indexFolder, analyzer);
 
         manager.compressor = compressor;
 
@@ -166,12 +166,6 @@ public class InvertedIndexManager {
         if (newDocId + 1 >= DEFAULT_FLUSH_THRESHOLD) {
             this.flush();
         }
-    }
-
-    /**
-     * Flush a word
-     */
-    private void flushWord(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, byte[] invertedListBytes, WriteMeta meta) {
     }
 
     private boolean isFlushValid() {
@@ -233,6 +227,7 @@ public class InvertedIndexManager {
         this.flushWordsBuffer.putInt(0, this.flushWordsBuffer.position());
         wordsChannel.writePage(meta.wordsPageNum, this.flushWordsBuffer);
         listsChannel.writePage(meta.listsPageNum, this.flushListsBuffer);
+        posChannel.writePage(meta.posPageNum, this.flushPosBuffer);
 
         listsChannel.close();
         wordsChannel.close();
@@ -440,7 +435,7 @@ public class InvertedIndexManager {
             }
         }
         // Add end offset
-        globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE, + posBuffer.position());
+        globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
 
         // Encode invertedList
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
@@ -993,6 +988,11 @@ public class InvertedIndexManager {
                 ByteBuffer posReadBuffer = posFileChannel.readPage(pageNum);
                 posReadBuffer.position(posOffset);
                 for (int j = 0; j < posLength; j++) {
+                    if (posReadBuffer.position() >= posReadBuffer.capacity()) {
+                        // Read next page
+                        pageNum += 1;
+                        posReadBuffer = posFileChannel.readPage(pageNum);
+                    }
                     encodedPositionList[j] = posReadBuffer.get();
                 }
                 // Decode position list
@@ -1001,6 +1001,7 @@ public class InvertedIndexManager {
                 // Add to table
                 positionsListsForTest.put(wordBlock.word, docId, positionList);
             }
+            invertedListsForTest.put(wordBlock.word, listBlock.invertedList);
         }
 
         listsFileChannel.close();
