@@ -162,6 +162,9 @@ public class Utils {
     }
 
     public static void increaseDocId(int baseDocSize, List<Integer> documentIds) {
+        if (documentIds == null) {
+            return;
+        }
         for (int i = 0; i < documentIds.size(); i++) {
             int d = baseDocSize + documentIds.get(i);
             documentIds.set(i, d);
