@@ -1,19 +1,15 @@
 package edu.uci.ics.cs221.inverted;
 
+import java.util.List;
+
 public class ListBlock {
-    public final static int CAPACITY = Integer.BYTES * 4;
+    public byte[] encodedInvertedList = null;
+    public byte[] encodedGlobalOffsets = null;
+    public List<Integer> invertedList = null;
+    public List<Integer> globalOffsets = null;
 
-    public int docId = 0;
-    public int listsPageNum = 0;
-    public int listOffset = 0;
-    public int listLength = 0;
-
-    public int segment = 0;
-
-    public ListBlock(int docId, int listsPageNum, int listOffset, int listLength) {
-        this.docId = docId;
-        this.listsPageNum = listsPageNum;
-        this.listOffset = listOffset;
-        this.listLength = listLength;
+    public ListBlock(int listLength, int globalOffsetLength) {
+        this.encodedInvertedList = new byte[listLength];
+        this.encodedGlobalOffsets = new byte[globalOffsetLength];
     }
 }
