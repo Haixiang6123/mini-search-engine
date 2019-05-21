@@ -177,7 +177,7 @@ public class Utils {
         String[] texts = document.getText().split(" ");
         for (int i = 0; i < texts.length; i++) {
             if (texts[i].equals(keyword)) {
-                positionList.add(i + 1);
+                positionList.add(i);
             }
         }
 
