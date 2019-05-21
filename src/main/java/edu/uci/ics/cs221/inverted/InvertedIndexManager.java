@@ -360,6 +360,7 @@ public class InvertedIndexManager {
             this.mergeWordsBuffer.putInt(0, this.mergeWordsBuffer.position());
             newSegWordsChannel.writePage(meta.wordsPageNum, this.mergeWordsBuffer);
             newSegListsChannel.writePage(meta.listsPageNum, this.mergeListsBuffer);
+            newSegPosChannel.writePage(meta.posPageNum, this.mergePosBuffer);
 
             // Close channels
             newSegListsChannel.close();
