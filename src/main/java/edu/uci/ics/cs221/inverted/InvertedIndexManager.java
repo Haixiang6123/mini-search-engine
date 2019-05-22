@@ -1085,9 +1085,12 @@ public class InvertedIndexManager {
                 }
 
                // 3. Validate processed docID
-                if(intersection == null)
+                if(intersection == null) {
+                    documentStore.close();
+                    wordsChannel.close();
+                    listChannel.close();
                     return documents.iterator();
-
+                }
                 // Organize words into Hashmap. ensure the sequence of words in phrase
                 Map<String, WordBlock> filteredWordBlocksMap = new HashMap<>();
                 for(WordBlock wordBlock: filteredWordBlocks){
