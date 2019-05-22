@@ -5,6 +5,7 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
+import com.sun.javafx.image.IntPixelGetter;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
@@ -909,7 +910,7 @@ public class InvertedIndexManager {
      * Phrase search means the document must contain the consecutive sequence of keywords in exact order.
      *
      * You could assume the analyzer won't convert each keyword into multiple tokens.
-     * Throws UnsupportedOperationException if the inverted index is not a positional index.
+     * TODO: Throws UnsupportedOperationException if the inverted index is not a positional index.
      *
      * @param phrase, a consecutive sequence of keywords
      * @return a iterator of documents matching the query
@@ -1001,11 +1002,11 @@ public class InvertedIndexManager {
 
 
 
-               // 3.  Use intersection docId to traverse words
+               // 3.  Use And docId to traverse words
                 if(intersection == null)
                     return documents.iterator();
 
-                // Organize words, put words into a HashMap
+                // Organize a mapping of word -> WordBlocks
                 Map<String, WordBlock> filteredWordBlocksMap = new HashMap<>();
                 for(WordBlock wordBlock: filteredWordBlocks){
                     filteredWordBlocksMap.put(wordBlock.word, wordBlock);
@@ -1030,7 +1031,6 @@ public class InvertedIndexManager {
                         ListBlock curBlock = invertedList.get(index);
                         List<Integer> position = new ArrayList<>();
                         //for(int p )
-
 
                         // If no position ( which is impossible but just in case) return empty iterator
                         if(position == null ||position.size() == 0)
