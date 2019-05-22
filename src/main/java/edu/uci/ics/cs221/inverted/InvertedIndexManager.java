@@ -415,10 +415,8 @@ public class InvertedIndexManager {
         wordBlock.listOffset = listsBuffer.position();
 
         // Global offsets
-        List<Integer> globalOffsets = new ArrayList<>();
-
         // Start to extract position lists and merge them
-        this.mergePositionList(posChannel, posBuffer,
+        List<Integer> globalOffsets = this.mergePositionList(posChannel, posBuffer,
                 leftPosChannel, rightPosChannel,
                 leftListBlock, rightListBlock,
                 meta, flag);
@@ -457,7 +455,7 @@ public class InvertedIndexManager {
     /**
      * Merge: flush position list
      */
-    private void mergePositionList(PageFileChannel posChannel, ByteBuffer posBuffer,
+    private List<Integer> mergePositionList(PageFileChannel posChannel, ByteBuffer posBuffer,
                                    PageFileChannel leftPosChannel, PageFileChannel rightPosChannel,
                                    ListBlock leftListBlock, ListBlock rightListBlock,
                                    WriteMeta meta, int flag) {
@@ -485,6 +483,8 @@ public class InvertedIndexManager {
                 this.assembleGlobalOffsets(rightPosChannel, posChannel, posBuffer, rightListBlock, globalOffsets, meta);
                 break;
         }
+
+        return globalOffsets;
     }
 
     /**
