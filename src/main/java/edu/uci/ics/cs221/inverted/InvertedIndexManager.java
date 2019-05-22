@@ -418,7 +418,7 @@ public class InvertedIndexManager {
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
 
-        this.initLists(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+        this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
 
         // Encode invertedList
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
@@ -439,9 +439,9 @@ public class InvertedIndexManager {
     /**
      * Init inverted list and position list
      */
-    private void initLists(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
-                            List<Integer> invertedList, List<Integer> globalOffsets,
-                           WordBlock wordBlock, WriteMeta meta) {
+    private void flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
+                                   List<Integer> invertedList, List<Integer> globalOffsets,
+                                   WordBlock wordBlock, WriteMeta meta) {
         // Flush all position lists
         for (Integer id : invertedList) {
             // Get position list
