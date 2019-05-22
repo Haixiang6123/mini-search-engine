@@ -621,8 +621,7 @@ public class InvertedIndexManager {
         }
 
         // Word Block
-        wordsBuffer
-                .putInt(wordBlock.wordLength) // Word length
+        wordsBuffer.putInt(wordBlock.wordLength) // Word length
                 .put(wordBlock.word.getBytes(StandardCharsets.UTF_8)) // Word
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset

@@ -20,7 +20,7 @@ public class WordBlock {
     }
 
     public int getWordBlockCapacity() {
-        return Integer.BYTES + this.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES;
+        return Integer.BYTES + this.wordLength + Integer.BYTES + Integer.BYTES + Integer.BYTES + Integer.BYTES;
     }
 
     @Override
