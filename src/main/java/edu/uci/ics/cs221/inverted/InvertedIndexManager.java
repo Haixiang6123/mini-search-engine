@@ -326,36 +326,16 @@ public class InvertedIndexManager {
                         rightWordBlock
                 );
                 Utils.increaseDocId(baseDocSize, rightListBlock.invertedList);
-                if (mergedWordBlock.isSingle) {
-                    if (leftWordBlock != null) {
-                        this.flushWordAndList(
-                                newDocStore,
-                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
-                                this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                leftListBlock.invertedList, leftWordBlock,
-                                meta);
-                    } else {
-                        this.flushWordAndList(
-                                newDocStore,
-                                newSegListsChannel, newSegWordsChannel, newSegPosChannel,
-                                this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                rightListBlock.invertedList, rightWordBlock,
-                                meta);
-                    }
-                } else {
-                    List<Integer> localInvertedList = new ArrayList<>();
-                    localInvertedList.addAll(leftListBlock.invertedList);
-                    localInvertedList.addAll(rightListBlock.invertedList);
-                    // Update list length in word block
-                    leftWordBlock.listLength += rightWordBlock.listLength;
-                    this.flushWordAndList(
-                            newDocStore,
-                            newSegListsChannel, newSegWordsChannel, newSegPosChannel,
-                            this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                            localInvertedList, leftWordBlock,
-                            meta);
-                }
 
+                // Compute merge flag
+                int flag = this.computeMergeFlag(mergedWordBlock, leftWordBlock);
+
+                // Start to merge
+                this.mergeWordAndList(newSegListsChannel, newSegWordsChannel, newSegPosChannel,
+                                  leftSegPosChannel, rightSegPosChannel,
+                                  this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
+                                  leftListBlock, rightListBlock,
+                                  flag == 1 ? rightWordBlock : leftWordBlock, meta, flag);
             }
 
             // Write remaining content from buffer
@@ -405,6 +385,137 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Compute merge flag
+     * 0: only left side
+     * 1: only right side
+     * 2: both sides
+     */
+    private int computeMergeFlag(MergedWordBlock mergedWordBlock, WordBlock leftWordBlock) {
+        if (mergedWordBlock.isSingle) {
+            if (leftWordBlock != null) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else {
+            return 2;
+        }
+    }
+
+    /**
+     * Merge: word block and list block
+     */
+    private void mergeWordAndList(PageFileChannel listsChannel, PageFileChannel wordsChannel, PageFileChannel posChannel,
+                                  PageFileChannel leftPosChannel, PageFileChannel rightPosChannel,
+                                  ByteBuffer listsBuffer, ByteBuffer wordsBuffer, ByteBuffer posBuffer,
+                                  ListBlock leftListBlock, ListBlock rightListBlock,
+                                  WordBlock wordBlock, WriteMeta meta, int flag) {
+        // Update word block
+        wordBlock.listsPageNum = meta.listsPageNum;
+        wordBlock.listOffset = listsBuffer.position();
+
+        // Global offsets
+        // Start to extract position lists and merge them
+        List<Integer> globalOffsets = this.mergePositionList(posChannel, posBuffer,
+                leftPosChannel, rightPosChannel,
+                leftListBlock, rightListBlock,
+                meta, flag);
+
+        // Encode invertedList
+        List<Integer> invertedList = null;
+        switch (flag) {
+            // Only left side
+            case 0:
+                invertedList = leftListBlock.invertedList;
+                break;
+            case 1:
+                invertedList = rightListBlock.invertedList;
+                break;
+            case 2:
+                invertedList = new ArrayList<>();
+                invertedList.addAll(leftListBlock.invertedList);
+                invertedList.addAll(rightListBlock.invertedList);
+                break;
+        }
+        byte[] encodedInvertedList = this.compressor.encode(invertedList);
+        // Encode global offset
+        byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
+
+        // Markdown global offset bytes length
+        wordBlock.listLength = encodedInvertedList.length;
+        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
+
+        // Flush list block
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+
+        // Flush word block
+        this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
+    }
+
+    /**
+     * Merge: flush position list
+     */
+    private List<Integer> mergePositionList(PageFileChannel posChannel, ByteBuffer posBuffer,
+                                   PageFileChannel leftPosChannel, PageFileChannel rightPosChannel,
+                                   ListBlock leftListBlock, ListBlock rightListBlock,
+                                   WriteMeta meta, int flag) {
+        // Merged global offsets
+        List<Integer> globalOffsets = new ArrayList<>();
+
+        switch (flag) {
+            // Only left side
+            case 0:
+                // Compute global offsets on left side
+                this.assembleGlobalOffsets(leftPosChannel, posChannel, posBuffer, leftListBlock, globalOffsets, meta);
+                break;
+            // Only right side
+            case 1:
+                // Compute global offsets on right side
+                this.assembleGlobalOffsets(rightPosChannel, posChannel, posBuffer, rightListBlock, globalOffsets, meta);
+                break;
+            // Both sides
+            case 2:
+                // Compute global offsets on left side
+                this.assembleGlobalOffsets(leftPosChannel, posChannel, posBuffer, leftListBlock, globalOffsets, meta);
+                // Remove the last one
+                globalOffsets.remove(globalOffsets.size() - 1);
+                // Compute global offsets on right side
+                this.assembleGlobalOffsets(rightPosChannel, posChannel, posBuffer, rightListBlock, globalOffsets, meta);
+                break;
+        }
+
+        return globalOffsets;
+    }
+
+    /**
+     * Assemble global offsets on left side or right side
+     */
+    private void assembleGlobalOffsets(PageFileChannel readPosChannel, PageFileChannel writePosChannel,
+                                       ByteBuffer posBuffer, ListBlock listBlock, List<Integer> globalOffsets,
+                                       WriteMeta meta) {
+        for (int i = 0; i < listBlock.invertedList.size(); i++) {
+            // Get position list
+            List<Integer> positionList = this.getPositionList(readPosChannel, listBlock.globalOffsets, i);
+            // Encode position list
+            byte[] encodedPositionList = this.compressor.encode(positionList);
+            // Mark down global offset
+            globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
+
+            // Flush encoded position list
+            for (byte encodedPosition : encodedPositionList) {
+                if (posBuffer.position() >= posBuffer.capacity()) {
+                    writePosChannel.writePage(meta.posPageNum, posBuffer);
+                    meta.posPageNum += 1;
+                    posBuffer.clear();
+                }
+                posBuffer.put(encodedPosition);
+            }
+        }
+        // Add end offset
+        globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
+    }
+
+    /**
      * Flush word block and list
      */
     private void flushWordAndList(DocumentStore documentStore,
@@ -418,6 +529,30 @@ public class InvertedIndexManager {
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
 
+        this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+
+        // Encode invertedList
+        byte[] encodedInvertedList = this.compressor.encode(invertedList);
+        // Encode global offset
+        byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
+
+        // Markdown global offset bytes length
+        wordBlock.listLength = encodedInvertedList.length;
+        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
+
+        // Flush list block
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+
+        // Flush word block
+        this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
+    }
+
+    /**
+     * Init inverted list and position list
+     */
+    private void flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
+                                   List<Integer> invertedList, List<Integer> globalOffsets,
+                                   WordBlock wordBlock, WriteMeta meta) {
         // Flush all position lists
         for (Integer id : invertedList) {
             // Get position list
@@ -439,12 +574,12 @@ public class InvertedIndexManager {
         }
         // Add end offset
         globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
+    }
 
-        // Encode invertedList
-        byte[] encodedInvertedList = this.compressor.encode(invertedList);
-        // Encode global offset
-        byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
-
+    /**
+     * Flush inverted list and global offsets
+     */
+    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, WriteMeta meta) {
         // Flush inverted list
         for (byte encodedDocId : encodedInvertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
@@ -463,11 +598,12 @@ public class InvertedIndexManager {
             }
             listsBuffer.put(encodedGlobalOffset);
         }
+    }
 
-        // Markdown global offset bytes length
-        wordBlock.listLength = encodedInvertedList.length;
-        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
-
+    /**
+     * Flush word block to file
+     */
+    private void flushWordBlock(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, WriteMeta meta) {
         // Write word block to segment
         int wordBlockCapacity = wordBlock.getWordBlockCapacity();
         // Exceed capacity
