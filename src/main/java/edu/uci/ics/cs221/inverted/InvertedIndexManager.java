@@ -445,6 +445,21 @@ public class InvertedIndexManager {
         // Encode global offset
         byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
 
+        // Markdown global offset bytes length
+        wordBlock.listLength = encodedInvertedList.length;
+        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
+
+        // Flush list block
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+
+        // Flush word block
+        this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
+    }
+
+    /**
+     * Flush inverted list and global offsets
+     */
+    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, WriteMeta meta) {
         // Flush inverted list
         for (byte encodedDocId : encodedInvertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
@@ -463,11 +478,12 @@ public class InvertedIndexManager {
             }
             listsBuffer.put(encodedGlobalOffset);
         }
+    }
 
-        // Markdown global offset bytes length
-        wordBlock.listLength = encodedInvertedList.length;
-        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
-
+    /**
+     * Flush word block to file
+     */
+    private void flushWordBlock(PageFileChannel wordsChannel, ByteBuffer wordsBuffer, WordBlock wordBlock, WriteMeta meta) {
         // Write word block to segment
         int wordBlockCapacity = wordBlock.getWordBlockCapacity();
         // Exceed capacity
