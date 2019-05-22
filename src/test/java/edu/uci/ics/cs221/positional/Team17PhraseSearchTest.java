@@ -9,6 +9,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.swing.text.html.HTMLDocument;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -17,8 +18,8 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 public class Team17PhraseSearchTest {
-    private final String path = "./index/Team17";
-    private Document doc1 = new Document("too young, very simple, sometimes naive");
+    private final String path = "./index/Team17PhraseSearchTest";
+    private Document doc1 = new Document("too young, too simple, sometimes naive");
     private Document doc2 = new Document("I'm angry!");
     private Document doc3 = new Document("The West Virginia Central Junction is a place in United States of America");
     private Document doc4 = new Document("Los Ranchos de Albuquerque is the name of a place");
@@ -68,7 +69,7 @@ public class Team17PhraseSearchTest {
     public void testPopularPhrases(){
         InvertedIndexManager iim;
         iim = InvertedIndexManager.createOrOpenPositional(path, new ComposableAnalyzer( new PunctuationTokenizer(), new PorterStemmer()), new NaiveCompressor());
-        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD+1; i++){
+        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD; i++){
             iim.addDocument(doc3);
             iim.addDocument(doc4);
         }
@@ -98,7 +99,7 @@ public class Team17PhraseSearchTest {
         InvertedIndexManager iim;
         iim = InvertedIndexManager.createOrOpenPositional(path, new ComposableAnalyzer( new PunctuationTokenizer(), new PorterStemmer()), new NaiveCompressor());
         iim.addDocument(doc2);
-        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD*4; i++){
+        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD*4 - 1; i++){
             iim.addDocument(doc1);
         }
         iim.mergeAllSegments();
@@ -125,7 +126,7 @@ public class Team17PhraseSearchTest {
         InvertedIndexManager iim;
         iim = InvertedIndexManager.createOrOpenPositional(path, new ComposableAnalyzer( new PunctuationTokenizer(), new PorterStemmer()), new NaiveCompressor());
         iim.addDocument(doc2);
-        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD*4; i++){
+        for(int i=0; i<InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD*4 - 1; i++){
             iim.addDocument(doc1);
         }
         iim.mergeAllSegments();

@@ -7,6 +7,8 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
+import edu.uci.ics.cs221.positional.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.positional.NaiveCompressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
@@ -70,6 +72,8 @@ public class InvertedIndexManager {
     private List<String> deletedWords = null;
     // Compressor
     private Compressor compressor = null;
+    // Support
+    boolean supportPosition = false;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -97,7 +101,11 @@ public class InvertedIndexManager {
             Path indexFolderPath = Paths.get(indexFolder);
             if (Files.exists(indexFolderPath) && Files.isDirectory(indexFolderPath)) {
                 if (Files.isDirectory(indexFolderPath)) {
-                    return new InvertedIndexManager(indexFolder, analyzer);
+                    InvertedIndexManager manager = new InvertedIndexManager(indexFolder, analyzer);
+                    manager.supportPosition = false;
+                    // make sure manager can run if not positional supported.
+                    manager.compressor = new DeltaVarLenCompressor();
+                    return manager;
                 } else {
                     throw new RuntimeException(indexFolderPath + " already exists and is not a directory");
                 }
@@ -117,7 +125,7 @@ public class InvertedIndexManager {
      */
     public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
         InvertedIndexManager manager = createOrOpen(indexFolder, analyzer);
-
+        manager.supportPosition = true;
         manager.compressor = compressor;
 
         return manager;
@@ -997,7 +1005,7 @@ public class InvertedIndexManager {
      * @return a iterator of documents matching the query
      */
     public Iterator<Document> searchPhraseQuery(List<String> phrase) {
-        if(this.compressor == null)
+        if(this.supportPosition == false)
             throw new UnsupportedOperationException();
 
         Preconditions.checkNotNull(phrase);
