@@ -418,6 +418,30 @@ public class InvertedIndexManager {
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
 
+        this.initLists(posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+
+        // Encode invertedList
+        byte[] encodedInvertedList = this.compressor.encode(invertedList);
+        // Encode global offset
+        byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
+
+        // Markdown global offset bytes length
+        wordBlock.listLength = encodedInvertedList.length;
+        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
+
+        // Flush list block
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+
+        // Flush word block
+        this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
+    }
+
+    /**
+     * Init inverted list and position list
+     */
+    private void initLists(PageFileChannel posChannel, ByteBuffer posBuffer,
+                            List<Integer> invertedList, List<Integer> globalOffsets,
+                           WordBlock wordBlock, WriteMeta meta) {
         // Flush all position lists
         for (Integer id : invertedList) {
             // Get position list
@@ -439,21 +463,6 @@ public class InvertedIndexManager {
         }
         // Add end offset
         globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
-
-        // Encode invertedList
-        byte[] encodedInvertedList = this.compressor.encode(invertedList);
-        // Encode global offset
-        byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
-
-        // Markdown global offset bytes length
-        wordBlock.listLength = encodedInvertedList.length;
-        wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
-
-        // Flush list block
-        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
-
-        // Flush word block
-        this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
     }
 
     /**
