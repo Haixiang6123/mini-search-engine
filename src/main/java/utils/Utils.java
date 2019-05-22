@@ -1,5 +1,7 @@
 package utils;
 
+import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.inverted.ListBlock;
 import edu.uci.ics.cs221.inverted.MergedWordBlock;
 import edu.uci.ics.cs221.inverted.WordBlock;
 import edu.uci.ics.cs221.storage.Document;
@@ -171,15 +173,22 @@ public class Utils {
         }
     }
 
-    public static List<Integer> getPositions(Document document, String keyword) {
+    /**
+     *
+     * @param document
+     * @param keyword    -- an analyzed keyword
+     * @param analyzer
+     * @return
+     */
+    public static List<Integer> getPositions(Document document, String keyword, Analyzer analyzer) {
         List<Integer> positionList = new ArrayList<>();
         if (keyword == null || keyword.equals("")) {
             return positionList;
         }
 
-        String[] texts = document.getText().split(" ");
-        for (int i = 0; i < texts.length; i++) {
-            if (texts[i].equals(keyword)) {
+        List<String> texts = analyzer.analyze(document.getText());
+        for (int i = 0; i < texts.size(); i++) {
+            if (texts.get(i).equals(keyword)) {
                 positionList.add(i);
             }
         }
