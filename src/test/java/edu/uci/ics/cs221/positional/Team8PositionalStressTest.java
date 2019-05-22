@@ -24,7 +24,7 @@ import static junit.framework.TestCase.assertTrue;
 public class Team8PositionalStressTest {
 
     private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(),new PorterStemmer());
-    private Compressor compressor = new DeltaVarLenCompressor();
+    private Compressor compressor = new NaiveCompressor();
     private InvertedIndexManager invertedIndexManager;
     private int docNum = 200000;
     private String textUrl = "https://raw.githubusercontent.com/NinoXing/Resource-UCI-CS221/master/Team8StressTest.txt";

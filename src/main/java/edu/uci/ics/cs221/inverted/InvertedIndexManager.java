@@ -913,10 +913,11 @@ public class InvertedIndexManager {
                     PageFileChannel listChannel = getSegmentChannel(i, "lists");
                     for (WordBlock wordBlock : filteredWordBlocks) {
                         // Get inverted list
-                        List<ListBlock> listBlocks = this.getInvertedListFromSegment(listChannel, wordBlock);
+//                        List<ListBlock> listBlocks = this.getInvertedListsForTest(listChannel, wordBlock);
+                        List<ListBlock> listBlocks = null;
                         List<Integer> invertedList = new ArrayList<>();
                         for (ListBlock listBlock : listBlocks) {
-                            invertedList.add(listBlock.docId);
+//                            invertedList.add(listBlock.docId);
                         }
 
                         if (intersection == null) {
@@ -967,12 +968,13 @@ public class InvertedIndexManager {
                     // For each word, find the docId's positional list
                     for (String word : analyzed) {
                         // todo: find offset list & find position of (this doc, this word) : Function for it.
-                        List<ListBlock> invertedList = this.getInvertedListFromSegment(listChannel, filteredWordBlocksMap.get(word));
+                        List<ListBlock> invertedList = null;
+//                        List<ListBlock> invertedList = this.getInvertedListFromSegment(listChannel, filteredWordBlocksMap.get(word));
                         List<Integer> offsetList = new ArrayList<>();
                         int index = 0;
                         while(index < invertedList.size()) {
-                            if(invertedList.get(index).docId == docId)
-                                break;
+//                            if(invertedList.get(index).docId == docId)
+//                                break;
                             index++;
                         }
                         ListBlock curBlock = invertedList.get(index);
