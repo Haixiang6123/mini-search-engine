@@ -1158,26 +1158,8 @@ public class InvertedIndexManager {
             for (int i = 0; i < listBlock.invertedList.size(); i++) {
                 // Get document Id
                 int docId = listBlock.invertedList.get(i);
-                // Calculate position list meta
-                int globalOffset = listBlock.globalOffsets.get(i);
-                int pageNum = globalOffset / PageFileChannel.PAGE_SIZE;
-                int posOffset = globalOffset % PageFileChannel.PAGE_SIZE;
-                // Get position list length
-                int posLength = listBlock.globalOffsets.get(i + 1) - listBlock.globalOffsets.get(i);
-                // Get position list
-                byte[] encodedPositionList = new byte[posLength];
-                ByteBuffer posReadBuffer = posFileChannel.readPage(pageNum);
-                posReadBuffer.position(posOffset);
-                for (int j = 0; j < posLength; j++) {
-                    if (posReadBuffer.position() >= posReadBuffer.capacity()) {
-                        // Read next page
-                        pageNum += 1;
-                        posReadBuffer = posFileChannel.readPage(pageNum);
-                    }
-                    encodedPositionList[j] = posReadBuffer.get();
-                }
                 // Decode position list
-                List<Integer> positionList = this.compressor.decode(encodedPositionList);
+                List<Integer> positionList = this.getPositionList(posFileChannel, listBlock, i);
 
                 // Add to table
                 positionsListsForTest.put(wordBlock.word, docId, positionList);
@@ -1193,5 +1175,28 @@ public class InvertedIndexManager {
 
         return documentsForTest.size() != 0 ?
                 new PositionalIndexSegmentForTest(invertedListsForTest, documentsForTest, positionsListsForTest) : null;
+    }
+
+    private List<Integer> getPositionList(PageFileChannel posFileChannel, ListBlock listBlock, int currentIndex) {
+        // Calculate position list meta
+        int globalOffset = listBlock.globalOffsets.get(currentIndex);
+        int pageNum = globalOffset / PageFileChannel.PAGE_SIZE;
+        int posOffset = globalOffset % PageFileChannel.PAGE_SIZE;
+        // Get position list length
+        int posLength = listBlock.globalOffsets.get(currentIndex + 1) - listBlock.globalOffsets.get(currentIndex);
+        // Get position list
+        byte[] encodedPositionList = new byte[posLength];
+        ByteBuffer posReadBuffer = posFileChannel.readPage(pageNum);
+        posReadBuffer.position(posOffset);
+        for (int j = 0; j < posLength; j++) {
+            if (posReadBuffer.position() >= posReadBuffer.capacity()) {
+                // Read next page
+                pageNum += 1;
+                posReadBuffer = posFileChannel.readPage(pageNum);
+            }
+            encodedPositionList[j] = posReadBuffer.get();
+        }
+        // Decode position list
+        return this.compressor.decode(encodedPositionList);
     }
 }
