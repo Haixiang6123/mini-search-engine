@@ -73,7 +73,7 @@ public class InvertedIndexManager {
     // Compressor
     private Compressor compressor = null;
     // Support
-    boolean supportPosition = false;
+    private boolean supportPosition = false;
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -472,6 +472,9 @@ public class InvertedIndexManager {
                                    WriteMeta meta, int flag) {
         // Merged global offsets
         List<Integer> globalOffsets = new ArrayList<>();
+        if (!this.supportPosition) {
+            return globalOffsets;
+        }
 
         switch (flag) {
             // Only left side
@@ -540,7 +543,9 @@ public class InvertedIndexManager {
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
 
-        this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+        if (this.supportPosition) {
+            this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+        }
 
         // Encode invertedList
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
