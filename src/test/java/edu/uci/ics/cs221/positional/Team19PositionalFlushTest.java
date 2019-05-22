@@ -1,15 +1,19 @@
 
 package edu.uci.ics.cs221.positional;
 
-import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-import edu.uci.ics.cs221.analysis.Analyzer;
+import com.google.common.collect.HashBasedTable;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
+import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.inverted.InvertedIndexManager;
-import edu.uci.ics.cs221.storage.Document;
+import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
+import edu.uci.ics.cs221.positional.NaiveCompressor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -17,14 +21,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-import static org.junit.Assert.*;
+import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.storage.Document;
 
 public class Team19PositionalFlushTest {
     Analyzer an = new NaiveAnalyzer();
     Compressor cp = new NaiveCompressor();
     InvertedIndexManager iim;
     String file = "./index/Team19PositionalFlushTest/";
-    
+
     private Document d1 = new Document("cat dog bird");
     private Document d2 = new Document("dog wolf tiger");
     private Document d3 = new Document("cat bird elephant");
@@ -36,8 +41,8 @@ public class Team19PositionalFlushTest {
     public void setup() throws Exception {
         Path path = Paths.get(file);
         Files.deleteIfExists(path);
-        iim = iim.createOrOpenPositional(file, an, cp);
-        iim.DEFAULT_FLUSH_THRESHOLD = 3;
+        iim = InvertedIndexManager.createOrOpenPositional(file, an, cp);
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 3;
     }
 
     @After
@@ -55,7 +60,7 @@ public class Team19PositionalFlushTest {
         }
         Files.deleteIfExists(Paths.get(file));
 
-        iim.DEFAULT_FLUSH_THRESHOLD = 1000;
+        InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1000;
     }
 
     // test flush when flush() is called automatically, whether the total number of segments is correct
@@ -81,12 +86,12 @@ public class Team19PositionalFlushTest {
         DocStore.put(2, new Document("wolf dog dog"));
 
         Table<String, Integer, List<Integer>> Positions = HashBasedTable.create();
-        Positions.put("cat", 0, Arrays.asList(1));
-        Positions.put("cat", 1, Arrays.asList(1));
-        Positions.put("dog", 0, Arrays.asList(2));
-        Positions.put("dog", 2, Arrays.asList(2, 3));
-        Positions.put("elephant", 1, Arrays.asList(2));
-        Positions.put("wolf", 2, Arrays.asList(1));
+        Positions.put("cat", 0, Arrays.asList(0));
+        Positions.put("cat", 1, Arrays.asList(0));
+        Positions.put("dog", 0, Arrays.asList(1));
+        Positions.put("dog", 2, Arrays.asList(1, 2));
+        Positions.put("elephant", 1, Arrays.asList(1));
+        Positions.put("wolf", 2, Arrays.asList(0));
 
         PositionalIndexSegmentForTest test = iim.getIndexSegmentPositional(0);
         assertEquals(PostingList, test.getInvertedLists());
@@ -101,7 +106,7 @@ public class Team19PositionalFlushTest {
         assertEquals(0, iim.getNumSegments());
         assertEquals(null, iim.getIndexSegmentPositional(0));
     }
-    
+
     // test flush() functionality as well as correct list of documnets in a sample segment
     @Test
     public void testPositionalFlush3() {
