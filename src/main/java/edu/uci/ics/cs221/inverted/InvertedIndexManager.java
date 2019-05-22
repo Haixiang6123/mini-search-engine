@@ -111,7 +111,10 @@ public class InvertedIndexManager {
                 }
             } else {
                 Files.createDirectories(indexFolderPath);
-                return new InvertedIndexManager(indexFolder, analyzer);
+                InvertedIndexManager manager = new InvertedIndexManager(indexFolder, analyzer);
+                manager.supportPosition = false;
+                manager.compressor = new DeltaVarLenCompressor();
+                return manager;
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
