@@ -5,7 +5,6 @@ package edu.uci.ics.cs221.inverted;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-import com.sun.javafx.image.IntPixelGetter;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.positional.Compressor;
 import edu.uci.ics.cs221.positional.PositionalIndexSegmentForTest;
