@@ -422,7 +422,7 @@ public class InvertedIndexManager {
         for (Integer id : invertedList) {
             // Get position list
             List<Integer> positionList = Utils.getPositions(documentStore.getDocument(id), wordBlock.word, this.analyzer);
-            // Encode position list
+            // Encode position list  // todo: check compressor.
             byte[] encodedPositionList = this.compressor.encode(positionList);
             // Mark down global offset
             globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
@@ -748,7 +748,7 @@ public class InvertedIndexManager {
                         // Lowerbound for list being searched; the ids are sorted in posting list
                         int lowbound = 0;
                         for (Integer target : intersection) {
-                            int left = lowbound, right = wordBlock.listLength - 1;
+                            int left = lowbound, right = listBlock.invertedList.size() - 1;
                             while (left < right) {
                                 int mid = (left + right) / 2;
                                 //Integer comparision
@@ -862,6 +862,9 @@ public class InvertedIndexManager {
      * @return a iterator of documents matching the query
      */
     public Iterator<Document> searchPhraseQuery(List<String> phrase) {
+        if(this.compressor == null)
+            throw new UnsupportedOperationException();
+
         Preconditions.checkNotNull(phrase);
 
         List<Document> documents = new ArrayList<>();
@@ -925,7 +928,7 @@ public class InvertedIndexManager {
                         // Lowerbound for list being searched; the ids are sorted in posting list
                         int lowbound = 0;
                         for (Integer target : intersection) {
-                            int left = lowbound, right = wordBlock.listLength - 1;
+                            int left = lowbound, right = invertedList.size() - 1;
                             while (left < right) {
                                 int mid = (left + right) / 2;
                                 //Integer comparision
