@@ -1,9 +1,8 @@
 package utils;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.inverted.ListBlock;
-import edu.uci.ics.cs221.inverted.MergedWordBlock;
-import edu.uci.ics.cs221.inverted.WordBlock;
+import edu.uci.ics.cs221.index.inverted.MergedWordBlock;
+import edu.uci.ics.cs221.index.inverted.WordBlock;
 import edu.uci.ics.cs221.storage.Document;
 
 import java.io.File;
