@@ -1195,6 +1195,21 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Performs top-K ranked search using TF-IDF.
+     * Returns an iterator that returns the K documents with highest TF-IDF scores.
+     *
+     * Unlike Boolean Query and Phrase Query where order of the documents doesn't matter,
+     * for ranked search, order of the document returned by the iterator matters.
+     *
+     * @param keywords, a list of keywords in the query
+     * @param topK, number of top documents weighted by TF-IDF
+     * @return a iterator of ordered documents matching the query
+     */
+    public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Iterates through all the documents in all disk segments.
      */
     public Iterator<Document> documentIterator() {
