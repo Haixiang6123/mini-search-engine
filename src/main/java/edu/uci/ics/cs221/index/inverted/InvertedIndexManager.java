@@ -1209,6 +1209,21 @@ public class InvertedIndexManager {
     }
 
     /**
+     * Returns the total number of documents within the given segment.
+     */
+    public int getNumDocuments(int segmentNum) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the number of documents containing the token within the given segment.
+     * The token should be already analyzed by the analyzer. The analyzer shouldn't be applied again.
+     */
+    public int getDocumentFrequency(int segmentNum, String token) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Iterates through all the documents in all disk segments.
      */
     public Iterator<Document> documentIterator() {
