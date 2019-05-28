@@ -1205,6 +1205,30 @@ public class InvertedIndexManager {
      * @return a iterator of ordered documents matching the query
      */
     public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
+        // queue< <segNo, docID>, score>
+
+        // calculate query's tf & idf.
+
+        // Pass 1: get each word's document frequency and revert it
+
+        // Pass 2: get each doc's term frequency, multiply with queue vector element by element.
+
+        /**
+         * Map<DocID, Double> dotProductAccumulator; //  DocID is <SegmentID, LocalDocID>
+         * Map<DocID, Double> vectorLengthAccumulator;
+         *
+         * for each segment:
+         *   for each query token w:
+         *     for each docID on the postingList of w:
+         *       tfidf = TF(w, docID) * IDF(w);
+         *       dotProductAccumulator[docID] += tfidf * queryTfIdf[w];
+         *       vectorLengthAccumulator[docID] += tfidf ^ 2;
+         *
+         *   for each docID in this segment
+         *     score(docID) =  dotProductAccumulator[docID] / sqrt(vectorLengthAccumulator[docID]);
+         */
+
+
         throw new UnsupportedOperationException();
     }
 
@@ -1212,7 +1236,9 @@ public class InvertedIndexManager {
      * Returns the total number of documents within the given segment.
      */
     public int getNumDocuments(int segmentNum) {
-        throw new UnsupportedOperationException();
+        DocumentStore documentStore = this.getDocumentStore(segmentNum, "");
+        return (int)documentStore.size();
+//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1220,6 +1246,24 @@ public class InvertedIndexManager {
      * The token should be already analyzed by the analyzer. The analyzer shouldn't be applied again.
      */
     public int getDocumentFrequency(int segmentNum, String token) {
+        // open words list, search word -> [word] : get posting list size (No. of doc)
+        PageFileChannel wordPage = this.getSegmentChannel(segmentNum, "words");
+        PageFileChannel listPage = this.getSegmentChannel(segmentNum, "lists");
+
+        List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segmentNum);
+        // Search for token
+        for(WordBlock wordBlock: wordBlockList ){
+            if (wordBlock.word == token) {
+                // Read posting list and get size
+                ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
+                return listBlock.invertedList.size();
+            }
+        }
+
+        // close pages.
+        wordPage.close();
+        listPage.close();
+
         throw new UnsupportedOperationException();
     }
 
