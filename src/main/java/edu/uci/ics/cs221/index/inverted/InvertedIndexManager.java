@@ -1262,6 +1262,7 @@ public class InvertedIndexManager {
                 wordPage.close();
                 listPage.close();
             }
+            segNum++;
         }
 
         // calculate query's tf-idf vector
@@ -1314,7 +1315,7 @@ public class InvertedIndexManager {
                         for(int index = 0; index < listBlock.invertedList.size(); index++){
                             int docId = listBlock.invertedList.get(index);
                             PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
-                            List<Integer> positionList = this.getPositionList(positionPage,listBlock.globalOffsets, index); // term freq
+                            List<Integer> positionList = this.getPositionList(positionPage,listBlock.globalOffsets, index); // term freq//todo check global offset
                             // Calc tfidf
                             double tfidf = positionList.size() * (globalDocNum / (double)documentFrequrncy.getOrDefault(term, 0));
                             // Update doc * query ; Update (doc)^2
@@ -1342,6 +1343,7 @@ public class InvertedIndexManager {
                 wordPage.close();
                 listPage.close();
             }
+            segNum++;
         }
 
         // Pass 3: Add document
