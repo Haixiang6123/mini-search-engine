@@ -6,14 +6,19 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
+import javafx.util.Pair;
+import org.apache.lucene.index.IndexDeletionPolicy;
+import sun.misc.SoftCache;
 import utils.Utils;
 
+import javax.print.Doc;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1205,14 +1210,73 @@ public class InvertedIndexManager {
      * @return a iterator of ordered documents matching the query
      */
     public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
-        // queue< <segNo, docID>, score>
+        // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
+        PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
+            @Override
+            public int compare(Pair<Double, DocID> o1, Pair<Double, DocID> o2) {
+                double res = o1.getKey() - o2.getKey();
+                if(res == 0)
+                    return 0;
+                else return res > 0 ? -1: 1;   // Decreasing order queue.
+            }
+        });
 
-        // calculate query's tf & idf.
+        // Analyze phrase words
+        ArrayList<String> analyzed = new ArrayList<>();
+        for (String keyword : keywords) {
+            List<String> result = this.analyzer.analyze(keyword);
+            // add possible keywords
+            if (result != null && result.size() > 0 && !result.get(0).equals(""))
+                analyzed.addAll(result);
+        }
 
-        // Pass 1: get each word's document frequency and revert it
+        Set<String> uniqueTerms = new HashSet<>(analyzed);
 
-        // Pass 2: get each doc's term frequency, multiply with queue vector element by element.
+        // Pass 1: get each word's document frequency; and overall document num
+        int globalDocNum = 0;
+        // Map< word, documentAmount >
+        Map<String, Integer> documentFrequrncy = new HashMap<>();
+        int segNum = 0;
+        while (true) {
+            if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
+                break;
+            } else {
+                // int df = this.getDocumentFrequency(segNum, analyzed[j])
+                // Accumulate overall doc Num:
+                globalDocNum += this.getNumDocuments(segNum);
+                // Open words list, search word
+                PageFileChannel wordPage = this.getSegmentChannel(segNum, "words");
+                PageFileChannel listPage = this.getSegmentChannel(segNum, "lists");
 
+                List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segNum);
+                // Filter analyzed words
+                for (WordBlock wordBlock : wordBlockList) {
+                    if (uniqueTerms.contains(wordBlock.word)) {
+                        ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
+                        int originDocNum = documentFrequrncy.getOrDefault(wordBlock.word, 0);
+                        documentFrequrncy.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
+                    }
+                }
+
+                // close pages.
+                wordPage.close();
+                listPage.close();
+            }
+        }
+
+        // calculate query's tf-idf vector
+        // Map < term, tfidf >
+        Map<String, Double> queryVector = new HashMap<>();
+        // Calc term frequency
+        for(String term: analyzed){
+            // Get oldVal : Term may duplicates
+            double origin = queryVector.getOrDefault(term, 0.0);
+            // accumulate one more "idf"
+            double newVal = origin + globalDocNum/(double)documentFrequrncy.getOrDefault(term, 0);  // usually doc freq is not 0
+            queryVector.put(term, newVal);
+        }
+
+        // Pass 2: get each doc's term frequency, get tf-idf, then multiply with queue vector element by element and do cumulation
         /**
          * Map<DocID, Double> dotProductAccumulator; //  DocID is <SegmentID, LocalDocID>
          * Map<DocID, Double> vectorLengthAccumulator;
@@ -1227,9 +1291,78 @@ public class InvertedIndexManager {
          *   for each docID in this segment
          *     score(docID) =  dotProductAccumulator[docID] / sqrt(vectorLengthAccumulator[docID]);
          */
+        segNum = 0;
+        while (true) {
+            if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
+                break;
+            } else {
+                PageFileChannel wordPage = this.getSegmentChannel(segNum, "words");
+                PageFileChannel listPage = this.getSegmentChannel(segNum, "lists");
 
+                Map<DocID, Double> dotProductAccumulator = new HashMap<>();
+                Map<DocID, Double> vectorLengthAccumulator = new HashMap<>();
+                Map<DocID, Double> scores = new HashMap<>();
 
-        throw new UnsupportedOperationException();
+                // Cumulate doc info
+                List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segNum);
+                for(WordBlock wordBlock: wordBlockList){
+                    if(uniqueTerms.contains(wordBlock.word)){
+                        String term = wordBlock.word;
+                        ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
+
+                        // For each docID, accumulate the product
+                        for(int index = 0; index < listBlock.invertedList.size(); index++){
+                            int docId = listBlock.invertedList.get(index);
+                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
+                            List<Integer> positionList = this.getPositionList(positionPage,listBlock.globalOffsets, index); // term freq
+                            // Calc tfidf
+                            double tfidf = positionList.size() * (globalDocNum / (double)documentFrequrncy.getOrDefault(term, 0));
+                            // Update doc * query ; Update (doc)^2
+                            DocID curDoc = new DocID(segNum, docId);
+                            double oldProduct = dotProductAccumulator.getOrDefault(curDoc, 0.0);
+                            dotProductAccumulator.put(curDoc, oldProduct + tfidf * queryVector.get(term));
+                            double oldLength = vectorLengthAccumulator.getOrDefault(curDoc, 0.0);
+                            vectorLengthAccumulator.put(curDoc, oldLength + tfidf*tfidf);
+                        }
+                    }
+                }
+
+                // Conclude socres for documents:
+                for(DocID docId: dotProductAccumulator.keySet()) {
+                    double sc = dotProductAccumulator.get(docId) / Math.sqrt(vectorLengthAccumulator.get(docId));
+                    scores.put(docId, sc);
+                    priorityQueue.add(new Pair<>(sc, docId));
+                    // Keep queue size in range of K:
+                    if(priorityQueue.size() > topK)
+                    {
+                        priorityQueue.poll();
+                    }
+                }
+
+                wordPage.close();
+                listPage.close();
+            }
+        }
+
+        // Pass 3: Add document
+        List<DocID> topDocs = new ArrayList<>();
+        while(!priorityQueue.isEmpty()){
+            DocID docID = priorityQueue.poll().getValue();
+            if(priorityQueue.size() < topK)
+                topDocs.add(docID);
+        }
+
+        List<Document> result = new ArrayList<>();
+        for(int i = 0; i < topDocs.size(); i++){
+            int seg = topDocs.get(i).segmentID;
+            int locID = topDocs.get(i).localID;
+            DocumentStore documentStore = this.getDocumentStore(segNum, "");
+            result.add( documentStore.getDocument(locID));
+        }
+
+        return result.iterator();
+
+//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1237,7 +1370,9 @@ public class InvertedIndexManager {
      */
     public int getNumDocuments(int segmentNum) {
         DocumentStore documentStore = this.getDocumentStore(segmentNum, "");
-        return (int)documentStore.size();
+        int result =  (int)documentStore.size();
+        documentStore.close();
+        return result;
 //        throw new UnsupportedOperationException();
     }
 
