@@ -54,7 +54,7 @@ public class Team4TfIdfTest {
         this.dvlIndexManager.flush();
 
         assertEquals(this.dvlIndexManager.getDocumentFrequency(0, "dog"), 2);
-        assertEquals(this.dvlIndexManager.getDocumentFrequency(0, "apple"), 3);
+        assertEquals(this.dvlIndexManager.getDocumentFrequency(0, "appl"), 3);
         assertEquals(this.dvlIndexManager.getDocumentFrequency(0, "people"), 0);
     }
 
@@ -74,7 +74,7 @@ public class Team4TfIdfTest {
         this.naiveIndexManager.flush();
 
         assertEquals(this.naiveIndexManager.getDocumentFrequency(0, "dog"), 2);
-        assertEquals(this.naiveIndexManager.getDocumentFrequency(0, "apple"), 3);
+        assertEquals(this.naiveIndexManager.getDocumentFrequency(0, "appl"), 3);
         assertEquals(this.naiveIndexManager.getDocumentFrequency(0, "people"), 0);
     }
 

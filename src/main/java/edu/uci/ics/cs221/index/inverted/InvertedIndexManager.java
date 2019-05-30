@@ -1388,7 +1388,7 @@ public class InvertedIndexManager {
         List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segmentNum);
         // Search for token
         for(WordBlock wordBlock: wordBlockList ){
-            if (wordBlock.word == token) {
+            if (wordBlock.word.equals(token)) {
                 // Read posting list and get size
                 ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
                 return listBlock.invertedList.size();
@@ -1399,7 +1399,8 @@ public class InvertedIndexManager {
         wordPage.close();
         listPage.close();
 
-        throw new UnsupportedOperationException();
+        return 0;
+//        throw new UnsupportedOperationException();
     }
 
     /**
