@@ -1200,16 +1200,20 @@ public class InvertedIndexManager {
 
     /**
      * Performs top-K ranked search using TF-IDF.
-     * Returns an iterator that returns the K documents with highest TF-IDF scores.
+     * Returns an iterator that returns the top K documents with highest TF-IDF scores.
+     *
+     * Each element is a pair of <Document, Double (TF-IDF Score)>.
+     *
+     * If parameter `topK` is null, then returns all the matching documents.
      *
      * Unlike Boolean Query and Phrase Query where order of the documents doesn't matter,
      * for ranked search, order of the document returned by the iterator matters.
      *
-     * @param keywords, a list of keywords in the query
-     * @param topK, number of top documents weighted by TF-IDF
+     * @param topK, number of top documents weighted by TF-IDF, all documents if topK is null
+     * @return a iterator of top-k ordered documents matching the query
      * @return a iterator of ordered documents matching the query
      */
-    public Iterator<Document> searchTfIdf(List<String> keywords, int topK) {
+    public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) { // todo:modify the return .
         // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
         PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
             @Override
@@ -1333,8 +1337,8 @@ public class InvertedIndexManager {
                     double sc = dotProductAccumulator.get(docId) / Math.sqrt(vectorLengthAccumulator.get(docId));
                     scores.put(docId, sc);
                     priorityQueue.add(new Pair<>(sc, docId));
-                    // Keep queue size in range of K:
-                    if(priorityQueue.size() > topK)
+                    // Keep queue size in range of K // if topK == 0 , skip polling
+                    if(topK > 0 && priorityQueue.size() > topK)
                     {
                         priorityQueue.poll();
                     }
@@ -1346,20 +1350,21 @@ public class InvertedIndexManager {
             segNum++;
         }
 
-        // Pass 3: Add document
-        List<DocID> topDocs = new ArrayList<>();
+        // Pass 3: retrieve doc ID from pair; reorganize docID sequence
+        List<Pair<Double, DocID>> topDocs = new ArrayList<>();
         while(!priorityQueue.isEmpty()){
-            DocID docID = priorityQueue.poll().getValue();
+            Pair<Double, DocID> pair = priorityQueue.poll();
             if(priorityQueue.size() < topK)
-                topDocs.add(docID);
+                topDocs.add(pair);
         }
 
-        List<Document> result = new ArrayList<>();
+        List<Pair<Document, Double>> result = new ArrayList<>();
         for(int i = 0; i < topDocs.size(); i++){
-            int seg = topDocs.get(i).segmentID;
-            int locID = topDocs.get(i).localID;
+            Pair<Double, DocID> pair = topDocs.get(i);
+            int seg = pair.getValue().segmentID;
+            int locID = pair.getValue().localID;
             DocumentStore documentStore = this.getDocumentStore(segNum, "");
-            result.add( documentStore.getDocument(locID));
+            result.add( new Pair<Document,Double>(documentStore.getDocument(locID), pair.getKey()));
         }
 
         return result.iterator();
@@ -1393,6 +1398,9 @@ public class InvertedIndexManager {
             if (wordBlock.word.equals(token)) {
                 // Read posting list and get size
                 ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
+                // close pages.
+                wordPage.close();
+                listPage.close();
                 return listBlock.invertedList.size();
             }
         }
