@@ -1,14 +1,15 @@
 package edu.uci.ics.cs221.index.ranking;
 
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.storage.Document;
-import javafx.util.Pair;
 
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 
 public class IcsSearchEngine {
+
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
      *
@@ -44,13 +45,22 @@ public class IcsSearchEngine {
     }
 
     /**
-     * Searches the ICS document corpus with the query using TF-IDF search provided by inverted index manager.
-     * The search process should first retrieve the top-K documents by TF-IDF rank,
-     * then re-order the resulting documents by the page rank score.
+     * Searches the ICS document corpus and returns the top K documents ranked by combining TF-IDF and PageRank.
      *
-     * Note: you could get the ID of each document from its first line.
+     * The search process should first retrieve ALL the top documents from the InvertedIndex by TF-IDF rank,
+     * by calling `searchTfIdf(query, null)`.
+     *
+     * Then the corresponding PageRank score of each document should be retrieved. (`computePageRank` will be called beforehand)
+     * For each document, the combined score is  tfIdfScore + pageRankWeight * pageRankScore.
+     *
+     * Finally, the top K documents of the combined score are returned. Each element is a pair of <Document, combinedScore>
+     *
+     *
+     * Note: We could get the Document ID by reading the first line of the document.
+     * This is a workaround because our project doesn't support multiple fields. We cannot keep the documentID in a separate column.
      */
-    public Iterator<Document> searchQuery(List<String> query, int topK) {
+    public Iterator<Document> searchQuery(List<String> query, int topK, double pageRankWeight) {
         throw new UnsupportedOperationException();
     }
+
 }
