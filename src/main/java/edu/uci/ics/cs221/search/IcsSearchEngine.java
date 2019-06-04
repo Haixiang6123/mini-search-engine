@@ -3,16 +3,18 @@ package edu.uci.ics.cs221.search;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.storage.Document;
+import utils.FileUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class IcsSearchEngine {
     private Path documentDirectory;
     private InvertedIndexManager indexManager;
+    private Map<Integer, String> idUrl;
+    private Map<Integer, List<Integer>> idGraph;
 
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
@@ -25,6 +27,33 @@ public class IcsSearchEngine {
     private IcsSearchEngine(Path documentDirectory, InvertedIndexManager indexManager) {
         this.documentDirectory = documentDirectory;
         this.indexManager = indexManager;
+
+        this.idUrl = new HashMap<>();
+        this.idGraph = new HashMap<>();
+
+        // Read url.tsv
+        File urlTsv = new File(this.documentDirectory.resolve("url.tsv").toString());
+        FileUtils.readFileAsString(urlTsv, line -> {
+            String[] idUrlStrings = line.split(" ");
+            // Add to map
+            idUrl.put(Integer.valueOf(idUrlStrings[0]), idUrlStrings[1]);
+        });
+
+        // Read id-graph.tsv
+        File idGraphTsv = new File(this.documentDirectory.resolve("id-graph.tsv").toString());
+        FileUtils.readFileAsString(idGraphTsv, line -> {
+            String[] idPair = line.split(" ");
+            int fromDocId = Integer.valueOf(idPair[0]);
+            int toDocId = Integer.valueOf(idPair[1]);
+
+            // Build up a graph
+            if (idGraph.containsKey(fromDocId)) {
+                idGraph.get(fromDocId).add(toDocId);
+            }
+            else {
+                idGraph.put(fromDocId, new ArrayList<>(Collections.singletonList(toDocId)));
+            }
+        });
     }
 
     /**
