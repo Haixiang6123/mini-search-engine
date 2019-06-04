@@ -4,11 +4,15 @@ import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.storage.Document;
 
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 
 public class IcsSearchEngine {
+    private Path documentDirectory;
+    private InvertedIndexManager indexManager;
 
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
@@ -19,13 +23,37 @@ public class IcsSearchEngine {
     }
 
     private IcsSearchEngine(Path documentDirectory, InvertedIndexManager indexManager) {
+        this.documentDirectory = documentDirectory;
+        this.indexManager = indexManager;
     }
 
     /**
      * Writes all ICS web page documents in the document directory to the inverted index.
      */
     public void writeIndex() {
-        throw new UnsupportedOperationException();
+        // Get document directory
+        File documentDir = new File(this.documentDirectory.toString());
+        // Get all document files
+        File[] documents = documentDir.listFiles();
+        if (documents == null) { return; }
+        // Parse to documents
+        for (File document : documents) {
+            try {
+                InputStreamReader inputStreamReader = new InputStreamReader(new FileInputStream(document), StandardCharsets.UTF_8);
+                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+                // First line is document Id
+                int docId = Integer.valueOf(bufferedReader.readLine());
+                // Second line is the original URL
+                String url = bufferedReader.readLine();
+                // Third line is text of HTML document
+                String text = bufferedReader.readLine();
+
+                indexManager.addDocument(new Document(text));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
