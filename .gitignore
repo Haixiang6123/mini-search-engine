@@ -33,3 +33,6 @@ hs_err_pid*
 
 # index folder
 /index
+
+# web pages
+webpages

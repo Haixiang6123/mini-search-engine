@@ -110,7 +110,7 @@ public class IcsSearchEngine {
     }
 
     /**
-     * Gets the page rank score of all documents previously computed. Must be called after `cmoputePageRank`.
+     * Gets the page rank score of all documents previously computed. Must be called after `computePageRank`.
      * Returns an list of <DocumentID - Score> Pairs that is sorted by score in descending order (high scores first).
      */
     public List<Pair<Integer, Double>> getPageRankScores() {
