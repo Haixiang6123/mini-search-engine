@@ -32,15 +32,31 @@ public class IcsSearchEngine {
         this.idGraph = new HashMap<>();
 
         // Read url.tsv
-        File urlTsv = new File(this.documentDirectory.resolve("url.tsv").toString());
+        this.readUrlTsv(this.documentDirectory);
+
+        // Read id-graph.tsv
+        this.readIdGraphTsv(this.documentDirectory);
+    }
+
+    /**
+     * Read url.tsv file
+     * Store id-url pairs in hash map
+     */
+    private void readUrlTsv(Path documentDirectory) {
+        File urlTsv = new File(documentDirectory.resolve("url.tsv").toString());
         FileUtils.readFileAsString(urlTsv, line -> {
             String[] idUrlStrings = line.split(" ");
             // Add to map
             idUrl.put(Integer.valueOf(idUrlStrings[0]), idUrlStrings[1]);
         });
+    }
 
-        // Read id-graph.tsv
-        File idGraphTsv = new File(this.documentDirectory.resolve("id-graph.tsv").toString());
+    /**
+     * Read id-graph.tsv file
+     * Store graph structure in hash map
+     */
+    private void readIdGraphTsv(Path documentDirectory) {
+        File idGraphTsv = new File(documentDirectory.resolve("id-graph.tsv").toString());
         FileUtils.readFileAsString(idGraphTsv, line -> {
             String[] idPair = line.split(" ");
             int fromDocId = Integer.valueOf(idPair[0]);
