@@ -1396,7 +1396,7 @@ public class InvertedIndexManager {
         List<Pair<Document, Double>> result = new ArrayList<>();
         // TODO: document store size?
         // TODO: document store num?
-        DocumentStore documentStore = this.getDocumentStore(segNum, "");
+        DocumentStore documentStore = this.getDocumentStore(segNum - 1, "");
         for(int i = 0; i < topDocs.size(); i++){
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
