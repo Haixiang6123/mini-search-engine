@@ -15,6 +15,7 @@ public class IcsSearchEngine {
     private InvertedIndexManager indexManager;
     private Map<Integer, String> idUrl;
     private Map<Integer, List<Integer>> idGraph;
+    private List<Pair<Integer, Double>> pageRankScores;
 
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
@@ -30,6 +31,7 @@ public class IcsSearchEngine {
 
         this.idUrl = new HashMap<>();
         this.idGraph = new HashMap<>();
+        this.pageRankScores = new ArrayList<>();
 
         // Read url.tsv
         this.readUrlTsv(this.documentDirectory);
@@ -104,7 +106,7 @@ public class IcsSearchEngine {
      * Returns an list of <DocumentID - Score> Pairs that is sorted by score in descending order (high scores first).
      */
     public List<Pair<Integer, Double>> getPageRankScores() {
-        throw new UnsupportedOperationException();
+        return this.pageRankScores;
     }
 
     /**
