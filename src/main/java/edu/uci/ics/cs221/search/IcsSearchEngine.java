@@ -15,7 +15,8 @@ public class IcsSearchEngine {
     private InvertedIndexManager indexManager;
     private Map<Integer, String> idUrl;
     private Map<Integer, List<Integer>> idGraph;
-    private List<Pair<Integer, Double>> pageRankScores;
+    private Map<Integer, List<Integer>> inverseIdGraph;
+    private Map<Integer, Double> pageRankScores;
 
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
@@ -31,7 +32,8 @@ public class IcsSearchEngine {
 
         this.idUrl = new HashMap<>();
         this.idGraph = new HashMap<>();
-        this.pageRankScores = new ArrayList<>();
+        this.inverseIdGraph = new HashMap<>();
+        this.pageRankScores = new HashMap<>();
 
         // Read url.tsv
         this.readUrlTsv(this.documentDirectory);
@@ -48,8 +50,12 @@ public class IcsSearchEngine {
         File urlTsv = new File(documentDirectory.resolve("url.tsv").toString());
         FileUtils.readFileAsString(urlTsv, line -> {
             String[] idUrlStrings = line.split(" ");
+            Integer docId = Integer.valueOf(idUrlStrings[0]);
+            String url = idUrlStrings[1];
             // Add to map
-            idUrl.put(Integer.valueOf(idUrlStrings[0]), idUrlStrings[1]);
+            idUrl.put(docId, url);
+            // Init page rank score
+            this.pageRankScores.put(docId, 1.0);
         });
     }
 
@@ -65,11 +71,19 @@ public class IcsSearchEngine {
             int toDocId = Integer.valueOf(idPair[1]);
 
             // Build up a graph
-            if (idGraph.containsKey(fromDocId)) {
-                idGraph.get(fromDocId).add(toDocId);
+            if (this.idGraph.containsKey(fromDocId)) {
+                this.idGraph.get(fromDocId).add(toDocId);
             }
             else {
-                idGraph.put(fromDocId, new ArrayList<>(Collections.singletonList(toDocId)));
+                this.idGraph.put(fromDocId, new ArrayList<>(Collections.singletonList(toDocId)));
+            }
+
+            // Build up an inverse graph
+            if (this.inverseIdGraph.containsKey(toDocId)) {
+                this.inverseIdGraph.get(toDocId).add(fromDocId);
+            }
+            else {
+                this.inverseIdGraph.put(toDocId, new ArrayList<>(Collections.singleton(fromDocId)));
             }
         });
     }
@@ -98,7 +112,30 @@ public class IcsSearchEngine {
      * The results of the computation can be saved in a class variable and will be later retrieved by `getPageRankScores`.
      */
     public void computePageRank(int numIterations) {
-        throw new UnsupportedOperationException();
+        double dumpFactor = 0.15;
+        // N time numIterations
+        for (int i = 0; i <= numIterations; i++) {
+            // Compute new page rank score for each document
+            for (Map.Entry<Integer, Double> idScore: this.pageRankScores.entrySet()) {
+                // Get current document id
+                int toDocId = idScore.getKey();
+                // Init new score for current document
+                double newToDocScore = 0.0 + (1 - dumpFactor);
+
+                // Get documents that are pointing to current doc Id
+                List<Integer> fromDocIds = this.inverseIdGraph.get(toDocId);
+
+                for (Integer fromDocId : fromDocIds) {
+                    double fromDocScore = this.pageRankScores.get(fromDocId);
+                    double outDegrees = this.idGraph.get(fromDocId).size();
+
+                    newToDocScore += dumpFactor * (fromDocScore / outDegrees);
+                }
+
+                // Update new score for current score
+                this.pageRankScores.put(toDocId, newToDocScore);
+            }
+        }
     }
 
     /**
@@ -106,7 +143,8 @@ public class IcsSearchEngine {
      * Returns an list of <DocumentID - Score> Pairs that is sorted by score in descending order (high scores first).
      */
     public List<Pair<Integer, Double>> getPageRankScores() {
-        return this.pageRankScores;
+        // Convert hash map to array list with Pairs
+        return new ArrayList<>();
     }
 
     /**
@@ -132,7 +170,6 @@ public class IcsSearchEngine {
         // Combine scores
         while (topKDocumentScores.hasNext()) {
             Pair<Document, Double> documentScore = topKDocumentScores.next();
-
         }
         return topKDocumentScores;
     }
