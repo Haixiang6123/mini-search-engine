@@ -112,7 +112,7 @@ public class IcsSearchEngine {
      * The results of the computation can be saved in a class variable and will be later retrieved by `getPageRankScores`.
      */
     public void computePageRank(int numIterations) {
-        double dumpFactor = 0.15;
+        double dumpFactor = 0.85;
         // N time numIterations
         for (int i = 0; i <= numIterations; i++) {
             // Compute new page rank score for each document
