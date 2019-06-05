@@ -6,6 +6,9 @@ import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexSegmentForTest;
+import edu.uci.ics.cs221.index.inverted.Pair;
+import edu.uci.ics.cs221.index.positional.Compressor;
+import edu.uci.ics.cs221.index.positional.NaiveCompressor;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;
@@ -22,6 +25,7 @@ public class Team14searchTfIdf {
 
     InvertedIndexManager index;
     Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
+    Compressor compressor = new NaiveCompressor();
     String path = "./index/Team14MergeTest/";
 
     Document[] documents1 = new Document[] {
@@ -76,7 +80,7 @@ public class Team14searchTfIdf {
 
     @Before
     public void build() {
-        index = InvertedIndexManager.createOrOpen(path, analyzer);
+        index = InvertedIndexManager.createOrOpenPositional(path, analyzer, compressor);
         InvertedIndexManager.DEFAULT_FLUSH_THRESHOLD = 1;
     }
 
@@ -124,7 +128,7 @@ public class Team14searchTfIdf {
             index.mergeAllSegments();
         }
 
-        Iterator<Document> iter = index.searchTfIdf(Arrays.asList("movie", "theater"), 0);
+        Iterator<Pair<Document, Double>> iter = index.searchTfIdf(Arrays.asList("movie", "theater"), 0);
 
         int counter = 0;
         while(iter.hasNext())
@@ -145,12 +149,12 @@ public class Team14searchTfIdf {
         }
         index.flush();
 
-        Iterator<Document> iter = index.searchTfIdf(Arrays.asList("movie", "theater"), 3);
+        Iterator<Pair<Document, Double>> iter = index.searchTfIdf(Arrays.asList("movie", "theater"), 3);
 
         int counter = 0;
         while(iter.hasNext())
         {
-            System.out.println(iter.next().getText());
+            System.out.println(iter.next().getLeft());
             counter ++;
         }
 

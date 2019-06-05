@@ -1,24 +1,18 @@
-
-
 package edu.uci.ics.cs221.index.inverted;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
-import javafx.util.Pair;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import sun.misc.SoftCache;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import utils.Utils;
 
-import javax.print.Doc;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1218,7 +1212,7 @@ public class InvertedIndexManager {
         PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
             @Override
             public int compare(Pair<Double, DocID> o1, Pair<Double, DocID> o2) {
-                double res = o1.getKey() - o2.getKey();
+                double res = o1.getLeft() - o2.getLeft();
                 if(res == 0)
                     return 0;
                 else return res > 0 ? -1: 1;   // Decreasing order queue.
@@ -1239,7 +1233,7 @@ public class InvertedIndexManager {
         // Pass 1: get each word's document frequency; and overall document num
         int globalDocNum = 0;
         // Map< word, documentAmount >
-        Map<String, Integer> documentFrequrncy = new HashMap<>();
+        Map<String, Integer> documentFrequency= new HashMap<>();
         int segNum = 0;
         while (true) {
             if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
@@ -1257,8 +1251,8 @@ public class InvertedIndexManager {
                 for (WordBlock wordBlock : wordBlockList) {
                     if (uniqueTerms.contains(wordBlock.word)) {
                         ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
-                        int originDocNum = documentFrequrncy.getOrDefault(wordBlock.word, 0);
-                        documentFrequrncy.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
+                        int originDocNum = documentFrequency.getOrDefault(wordBlock.word, 0);
+                        documentFrequency.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
                     }
                 }
 
@@ -1277,7 +1271,7 @@ public class InvertedIndexManager {
             // Get oldVal : Term may duplicates
             double origin = queryVector.getOrDefault(term, 0.0);
             // accumulate one more "idf"
-            double newVal = origin + globalDocNum/(double)documentFrequrncy.getOrDefault(term, 0);  // usually doc freq is not 0
+            double newVal = origin + globalDocNum/(double)documentFrequency.getOrDefault(term, 0);  // usually doc freq is not 0
             queryVector.put(term, newVal);
         }
 
@@ -1321,7 +1315,7 @@ public class InvertedIndexManager {
                             PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
                             List<Integer> positionList = this.getPositionList(positionPage,listBlock.globalOffsets, index); // term freq//todo check global offset
                             // Calc tfidf
-                            double tfidf = positionList.size() * (globalDocNum / (double)documentFrequrncy.getOrDefault(term, 0));
+                            double tfidf = positionList.size() * (globalDocNum / (double)documentFrequency.getOrDefault(term, 0));
                             // Update doc * query ; Update (doc)^2
                             DocID curDoc = new DocID(segNum, docId);
                             double oldProduct = dotProductAccumulator.getOrDefault(curDoc, 0.0);
@@ -1332,7 +1326,7 @@ public class InvertedIndexManager {
                     }
                 }
 
-                // Conclude socres for documents:
+                // Conclude scores for documents:
                 for(DocID docId: dotProductAccumulator.keySet()) {
                     double sc = dotProductAccumulator.get(docId) / Math.sqrt(vectorLengthAccumulator.get(docId));
                     scores.put(docId, sc);
@@ -1359,12 +1353,12 @@ public class InvertedIndexManager {
         }
 
         List<Pair<Document, Double>> result = new ArrayList<>();
+        DocumentStore documentStore = this.getDocumentStore(segNum, "");
         for(int i = 0; i < topDocs.size(); i++){
             Pair<Double, DocID> pair = topDocs.get(i);
-            int seg = pair.getValue().segmentID;
-            int locID = pair.getValue().localID;
-            DocumentStore documentStore = this.getDocumentStore(segNum, "");
-            result.add( new Pair<Document,Double>(documentStore.getDocument(locID), pair.getKey()));
+            int seg = pair.getRight().segmentID;
+            int locID = pair.getRight().localID;
+            result.add(new Pair<Document,Double>(documentStore.getDocument(locID), pair.getLeft()));
         }
 
         return result.iterator();
