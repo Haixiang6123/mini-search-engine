@@ -1234,9 +1234,6 @@ public class InvertedIndexManager {
         }
 
         return documents.iterator();
-
-//        if(!isPositional)
-//          throw new UnsupportedOperationException();
     }
 
     /**

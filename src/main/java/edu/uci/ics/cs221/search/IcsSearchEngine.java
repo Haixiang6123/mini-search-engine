@@ -83,21 +83,11 @@ public class IcsSearchEngine {
         if (documents == null) { return; }
         // Parse to documents
         for (File document : documents) {
-            try {
-                InputStreamReader inputStreamReader = new InputStreamReader(new FileInputStream(document), StandardCharsets.UTF_8);
-                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+            // Read document text
+            String documentText = FileUtils.readFileAsString(document, null);
 
-                // First line is document Id
-                int docId = Integer.valueOf(bufferedReader.readLine());
-                // Second line is the original URL
-                String url = bufferedReader.readLine();
-                // Third line is text of HTML document
-                String text = bufferedReader.readLine();
-
-                indexManager.addDocument(new Document(text));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            // Add document to index manager
+            indexManager.addDocument(new Document(documentText));
         }
     }
 
@@ -133,7 +123,16 @@ public class IcsSearchEngine {
      * This is a workaround because our project doesn't support multiple fields. We cannot keep the documentID in a separate column.
      */
     public Iterator<Pair<Document, Double>> searchQuery(List<String> query, int topK, double pageRankWeight) {
-        throw new UnsupportedOperationException();
+        // Use TfIdf to search documents
+        Iterator<Pair<Document, Double>> topKDocumentScores = this.indexManager.searchTfIdf(query, topK);
+        // Retrieve corresponding PageRank score
+        List<Pair<Integer, Double>> pageRankScores = this.getPageRankScores();
+        // Combine scores
+        while (topKDocumentScores.hasNext()) {
+            Pair<Document, Double> documentScore = topKDocumentScores.next();
+
+        }
+        return topKDocumentScores;
     }
 
 }

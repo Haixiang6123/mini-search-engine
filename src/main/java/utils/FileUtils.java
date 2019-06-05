@@ -17,7 +17,9 @@ public class FileUtils {
                 // Build a string
                 stringBuilder.append(line);
                 // Read file callback
-                callback.callback(line);
+                if (callback != null) {
+                    callback.callback(line);
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
