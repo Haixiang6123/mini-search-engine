@@ -6,6 +6,7 @@ import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.index.positional.NaiveCompressor;
 import edu.uci.ics.cs221.index.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
@@ -72,6 +73,8 @@ public class InvertedIndexManager {
     private Compressor compressor = null;
     // Support
     private boolean supportPosition = false;
+    private Compressor naiveCompressor = new NaiveCompressor();
+
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -222,7 +225,8 @@ public class InvertedIndexManager {
                     meta.listsPageNum,           // Lists page num
                     meta.listsPageOffset, // List offset
                     documentIds.size(),      // List length
-                    meta.listsPageNum * PageFileChannel.PAGE_SIZE + this.flushListsBuffer.position()
+                    meta.listsPageNum * PageFileChannel.PAGE_SIZE + this.flushListsBuffer.position(),
+                    0
             );
 
             // Flush word and list
@@ -432,30 +436,38 @@ public class InvertedIndexManager {
 
         // Encode invertedList
         List<Integer> invertedList = null;
+        List<Integer> sizeList = null;
         switch (flag) {
             // Only left side
             case 0:
                 invertedList = leftListBlock.invertedList;
+                sizeList = leftListBlock.sizeList;
                 break;
             case 1:
                 invertedList = rightListBlock.invertedList;
+                sizeList = rightListBlock.sizeList;
                 break;
             case 2:
                 invertedList = new ArrayList<>();
                 invertedList.addAll(leftListBlock.invertedList);
                 invertedList.addAll(rightListBlock.invertedList);
+                sizeList = new ArrayList<>();
+                sizeList.addAll(leftListBlock.sizeList);
+                sizeList.addAll(rightListBlock.sizeList);
                 break;
         }
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
         // Encode global offset
         byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
+        // Encode size list
+        byte[] encodedSizeList = this.naiveCompressor.encode(sizeList);
 
         // Markdown global offset bytes length
         wordBlock.listLength = encodedInvertedList.length;
         wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
 
         // Flush list block
-        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, encodedSizeList, meta);
 
         // Flush word block
         this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
@@ -540,10 +552,17 @@ public class InvertedIndexManager {
 
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
-
+        // Position list sizes list
+        byte[] encodedSizeList = new byte[0];
+        // Deal with position list
         if (this.supportPosition) {
-            this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+            // Get size list
+            List<Integer> sizeList = this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+            // Encode size list
+            encodedSizeList = this.naiveCompressor.encode(sizeList);
         }
+        // Update word block size length
+        wordBlock.sizeLength = encodedSizeList.length;
 
         // Encode invertedList
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
@@ -555,7 +574,7 @@ public class InvertedIndexManager {
         wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
 
         // Flush list block
-        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, encodedSizeList, meta);
 
         // Flush word block
         this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
@@ -564,14 +583,17 @@ public class InvertedIndexManager {
     /**
      * Init inverted list and position list
      */
-    private void flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
+    private List<Integer> flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
                                    List<Integer> invertedList, List<Integer> globalOffsets,
                                    WordBlock wordBlock, WriteMeta meta) {
+        List<Integer> sizeList = new ArrayList<>();
         // Flush all position lists
         for (Integer id : invertedList) {
             // Get position list
             List<Integer> positionList = Utils.getPositions(documentStore.getDocument(id), wordBlock.word, this.analyzer);
-            // Encode position list  // todo: check compressor.
+            // Add size
+            sizeList.add(positionList.size());
+            // Encode position list
             byte[] encodedPositionList = this.compressor.encode(positionList);
             // Mark down global offset
             globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
@@ -588,12 +610,14 @@ public class InvertedIndexManager {
         }
         // Add end offset
         globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
+
+        return sizeList;
     }
 
     /**
      * Flush inverted list and global offsets
      */
-    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, WriteMeta meta) {
+    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, byte[] encodedSizeList, WriteMeta meta) {
         // Flush inverted list
         for (byte encodedDocId : encodedInvertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
@@ -611,6 +635,15 @@ public class InvertedIndexManager {
                 listsBuffer.clear();
             }
             listsBuffer.put(encodedGlobalOffset);
+        }
+        // Flush size list
+        for (byte encodedSize : encodedSizeList) {
+            if (listsBuffer.position() >= listsBuffer.capacity()) {
+                listsChannel.writePage(meta.listsPageNum, listsBuffer);
+                meta.listsPageNum += 1;
+                listsBuffer.clear();
+            }
+            listsBuffer.put(encodedSize);
         }
     }
 
@@ -640,7 +673,8 @@ public class InvertedIndexManager {
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
                 .putInt(wordBlock.listLength) // List length
-                .putInt(wordBlock.globalOffsetLength); // Global offset length
+                .putInt(wordBlock.globalOffsetLength) // Global offset length
+                .putInt(wordBlock.sizeLength); // Size length
     }
 
     /**
@@ -709,7 +743,8 @@ public class InvertedIndexManager {
                         wordsBuffer.getInt(), // Lists page num
                         wordsBuffer.getInt(),  // List offset
                         wordsBuffer.getInt(),   // List length
-                        wordsBuffer.getInt()   //  Global offset length
+                        wordsBuffer.getInt(),   //  Global offset length
+                        wordsBuffer.getInt()   // Size list length
                 );
                 wordBlock.segment = segmentIndex;
                 wordBlocks.add(wordBlock);
@@ -724,10 +759,10 @@ public class InvertedIndexManager {
      */
     private ListBlock getListBlockFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
         if (wordBlock == null) {
-            return new ListBlock(0, 0);
+            return new ListBlock(0, 0, 0);
         }
         // Init a new list block
-        ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength);
+        ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength, wordBlock.sizeLength);
 
         // Get byte buffer
         int page = wordBlock.listsPageNum;
@@ -758,6 +793,18 @@ public class InvertedIndexManager {
         }
         // Decode global offsets
         listBlock.globalOffsets = this.compressor.decode(listBlock.encodedGlobalOffsets);
+
+        // Extract the size list
+        for (int i = 0; i < wordBlock.sizeLength; i++) {
+            // Overflow -> span out pages
+            if (listsByteBuffer.position() >= listsByteBuffer.capacity()) {
+                page += 1;
+                listsByteBuffer = listsFileChannel.readPage(page);
+            }
+            listBlock.encodedSizeList[i] = listsByteBuffer.get();
+        }
+        // Decode size list
+        listBlock.sizeList = this.naiveCompressor.decode(listBlock.encodedSizeList);
 
         return listBlock;
     }
@@ -1364,8 +1411,6 @@ public class InvertedIndexManager {
         }
 
         return result.iterator();
-
-//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1376,7 +1421,6 @@ public class InvertedIndexManager {
         int result =  (int)documentStore.size();
         documentStore.close();
         return result;
-//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1406,7 +1450,6 @@ public class InvertedIndexManager {
         listPage.close();
 
         return 0;
-//        throw new UnsupportedOperationException();
     }
 
     /**
