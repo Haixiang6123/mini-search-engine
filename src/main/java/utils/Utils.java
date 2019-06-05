@@ -2,6 +2,7 @@ package utils;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.index.inverted.MergedWordBlock;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.index.inverted.WordBlock;
 import edu.uci.ics.cs221.storage.Document;
 
@@ -193,5 +194,31 @@ public class Utils {
         }
 
         return positionList;
+    }
+
+    /**
+     * Convert HashMap/Map to List with Pair
+     */
+    public static <K, V> List<Pair<K, V>> convertMapToList(Map<K, V> map) {
+        List<Pair<K, V>> list = new ArrayList<>();
+
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            list.add(new Pair<>(entry.getKey(), entry.getValue()));
+        }
+
+        return list;
+    }
+
+    /**
+     * Convert List with Pair to HashMap/Map
+     */
+    public static <K, V> Map<K, V> convertListToMap(List<Pair<K, V>> list) {
+        Map<K, V> map = new HashMap<>();
+
+        for (Pair<K, V> pair: list) {
+            map.put(pair.getLeft(), pair.getRight());
+        }
+
+        return map;
     }
 }

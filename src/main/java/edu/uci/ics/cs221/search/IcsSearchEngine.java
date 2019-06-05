@@ -4,9 +4,9 @@ import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.storage.Document;
 import utils.FileUtils;
+import utils.Utils;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -16,7 +16,8 @@ public class IcsSearchEngine {
     private Map<Integer, String> idUrl;
     private Map<Integer, List<Integer>> idGraph;
     private Map<Integer, List<Integer>> inverseIdGraph;
-    private Map<Integer, Double> pageRankScores;
+    private Map<Integer, Double> pageRankScoresMap;
+    private List<Pair<Integer, Double>> pageRankScores;
 
     /**
      * Initializes an IcsSearchEngine from the directory containing the documents and the
@@ -33,7 +34,8 @@ public class IcsSearchEngine {
         this.idUrl = new HashMap<>();
         this.idGraph = new HashMap<>();
         this.inverseIdGraph = new HashMap<>();
-        this.pageRankScores = new HashMap<>();
+        this.pageRankScoresMap = new HashMap<>();
+        this.pageRankScores = new ArrayList<>();
 
         // Read url.tsv
         this.readUrlTsv(this.documentDirectory);
@@ -55,7 +57,7 @@ public class IcsSearchEngine {
             // Add to map
             idUrl.put(docId, url);
             // Init page rank score
-            this.pageRankScores.put(docId, 1.0);
+            this.pageRankScoresMap.put(docId, 1.0);
         });
     }
 
@@ -116,7 +118,7 @@ public class IcsSearchEngine {
         // N time numIterations
         for (int i = 0; i <= numIterations; i++) {
             // Compute new page rank score for each document
-            for (Map.Entry<Integer, Double> idScore: this.pageRankScores.entrySet()) {
+            for (Map.Entry<Integer, Double> idScore: this.pageRankScoresMap.entrySet()) {
                 // Get current document id
                 int toDocId = idScore.getKey();
                 // Init new score for current document
@@ -127,7 +129,7 @@ public class IcsSearchEngine {
                 List<Integer> fromDocIds = this.inverseIdGraph.get(toDocId);
 
                 for (Integer fromDocId : fromDocIds) {
-                    double fromDocScore = this.pageRankScores.get(fromDocId);
+                    double fromDocScore = this.pageRankScoresMap.get(fromDocId);
                     double outDegrees = this.idGraph.get(fromDocId).size();
 
                     sum += (fromDocScore / outDegrees);
@@ -136,9 +138,12 @@ public class IcsSearchEngine {
                 newToDocScore += dumpFactor * sum;
 
                 // Update new score for current score
-                this.pageRankScores.put(toDocId, newToDocScore);
+                this.pageRankScoresMap.put(toDocId, newToDocScore);
             }
         }
+
+        // Convert HashMap to ArrayList
+        this.pageRankScores = Utils.convertMapToList(this.pageRankScoresMap);
     }
 
     /**
@@ -146,8 +151,7 @@ public class IcsSearchEngine {
      * Returns an list of <DocumentID - Score> Pairs that is sorted by score in descending order (high scores first).
      */
     public List<Pair<Integer, Double>> getPageRankScores() {
-        // Convert hash map to array list with Pairs
-        return new ArrayList<>();
+        return this.pageRankScores;
     }
 
     /**
