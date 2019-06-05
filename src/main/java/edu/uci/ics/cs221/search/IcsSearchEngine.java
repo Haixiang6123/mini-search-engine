@@ -170,15 +170,30 @@ public class IcsSearchEngine {
      * This is a workaround because our project doesn't support multiple fields. We cannot keep the documentID in a separate column.
      */
     public Iterator<Pair<Document, Double>> searchQuery(List<String> query, int topK, double pageRankWeight) {
+        // Top K list
+        List<Pair<Document, Double>> topKScores = new ArrayList<>();
         // Use TfIdf to search documents
-        Iterator<Pair<Document, Double>> topKDocumentScores = this.indexManager.searchTfIdf(query, topK);
+        Iterator<Pair<Document, Double>> topKTfIdfScores = this.indexManager.searchTfIdf(query, topK);
         // Retrieve corresponding PageRank score
         List<Pair<Integer, Double>> pageRankScores = this.getPageRankScores();
+        Map<Integer, Double> pageRankScoresMap = Utils.convertListToMap(pageRankScores);
         // Combine scores
-        while (topKDocumentScores.hasNext()) {
-            Pair<Document, Double> documentScore = topKDocumentScores.next();
+        while (topKTfIdfScores.hasNext()) {
+            // Get pair
+            Pair<Document, Double> pair = topKTfIdfScores.next();
+            Document document = pair.getLeft();
+            double tfIdfScore = pair.getRight();
+
+            // Get global document Id
+            int docId = Integer.valueOf(document.getText().split("\n")[0]);
+            // Get page rank score
+            double pageRankScore = pageRankScoresMap.get(docId);
+
+            // Combine tf-idf score and page rank score
+            topKScores.add(new Pair<>(document, tfIdfScore + pageRankWeight * pageRankScore));
         }
-        return topKDocumentScores;
+
+        return topKScores.iterator();
     }
 
 }
