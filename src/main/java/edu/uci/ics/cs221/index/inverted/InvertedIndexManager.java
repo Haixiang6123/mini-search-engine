@@ -1256,14 +1256,11 @@ public class InvertedIndexManager {
      */
     public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) { // todo:modify the return .
         // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
-        PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
-            @Override
-            public int compare(Pair<Double, DocID> o1, Pair<Double, DocID> o2) {
-                double res = o1.getLeft() - o2.getLeft();
-                if(res == 0)
-                    return 0;
-                else return res > 0 ? -1: 1;   // Decreasing order queue.
-            }
+        PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>((o1, o2) -> {
+           double res = o1.getLeft() - o2.getLeft();
+            if(res == 0)
+                return 0;
+            else return res > 0 ? -1: 1;   // Decreasing order queue.
         });
 
         // Analyze phrase words
@@ -1407,7 +1404,7 @@ public class InvertedIndexManager {
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
             int locID = pair.getRight().localID;
-            result.add(new Pair<Document,Double>(documentStore.getDocument(locID), pair.getLeft()));
+            result.add(new Pair<>(documentStore.getDocument(locID), pair.getLeft()));
         }
 
         return result.iterator();
