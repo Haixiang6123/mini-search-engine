@@ -121,6 +121,7 @@ public class IcsSearchEngine {
                 int toDocId = idScore.getKey();
                 // Init new score for current document
                 double newToDocScore = 0.0 + (1 - dumpFactor);
+                double sum = 0.0;
 
                 // Get documents that are pointing to current doc Id
                 List<Integer> fromDocIds = this.inverseIdGraph.get(toDocId);
@@ -129,8 +130,10 @@ public class IcsSearchEngine {
                     double fromDocScore = this.pageRankScores.get(fromDocId);
                     double outDegrees = this.idGraph.get(fromDocId).size();
 
-                    newToDocScore += dumpFactor * (fromDocScore / outDegrees);
+                    sum += (fromDocScore / outDegrees);
                 }
+                // Update sum with dump factor
+                newToDocScore += dumpFactor * sum;
 
                 // Update new score for current score
                 this.pageRankScores.put(toDocId, newToDocScore);
