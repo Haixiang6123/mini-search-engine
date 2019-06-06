@@ -95,7 +95,7 @@ public class IcsSearchEngine {
      */
     public void writeIndex() {
         // Get document directory
-        File documentDir = new File(this.documentDirectory.toString());
+        File documentDir = new File(this.documentDirectory.resolve("cleaned").toString());
         // Get all document files
         File[] documents = documentDir.listFiles();
         if (documents == null) { return; }
