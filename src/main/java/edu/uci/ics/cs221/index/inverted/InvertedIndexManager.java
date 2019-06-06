@@ -1349,10 +1349,11 @@ public class InvertedIndexManager {
                         // For each docID, accumulate the product
                         for (int index = 0; index < listBlock.invertedList.size(); index++) {
                             int docId = listBlock.invertedList.get(index);
-                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
-                            List<Integer> positionList = this.getPositionList(positionPage, listBlock.globalOffsets, index); // term freq//todo check global offset
+//                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
+//                            List<Integer> positionList = this.getPositionList(positionPage, listBlock.globalOffsets, index); // term freq//todo check global offset
+                            int positionListSize = listBlock.sizeList.get(index);
                             // Calc tfidf
-                            double tfidf = positionList.size() * (globalDocNum / (double) documentFrequency.getOrDefault(term, 0));
+                            double tfidf = positionListSize * (globalDocNum / (double) documentFrequency.getOrDefault(term, 0));
                             // Update doc * query ; Update (doc)^2
                             DocID curDoc = new DocID(segNum, docId);
                             double oldProduct = dotProductAccumulator.getOrDefault(curDoc, 0.0);
