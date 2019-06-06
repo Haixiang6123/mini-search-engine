@@ -24,14 +24,67 @@ import java.util.List;
 public class IcsSearchEngineTest {
     private Compressor compressor = new DeltaVarLenCompressor();
     private Analyzer analyzer = new NaiveAnalyzer();
+    private InvertedIndexManager indexManager;
+    private IcsSearchEngine engine;
     private final String PATH = "./index/Team4IcsSearchEngineTest";
-    private Path documentDirectory = null;
 
     @Before
     public void setup() {
         // TODO: Check webpages path
         URL documentResource = IcsSearchEngine.class.getClassLoader().getResource("webpages");
-        documentDirectory = Paths.get(documentResource.getPath());
+        Path documentDirectory = Paths.get(documentResource.getPath());
+
+        // Init engine
+        indexManager = InvertedIndexManager.createOrOpenPositional(PATH, analyzer, compressor);
+        engine = IcsSearchEngine.createSearchEngine(documentDirectory, indexManager);
+
+        // Write all ICS documents to manager
+        engine.writeIndex();
+
+        // Compute page rank scores by given number of iterations
+        engine.computePageRank(999);
+    }
+
+    @Test
+    public void test1() {
+        // Prepare search meta data
+        List<String> queries = new ArrayList<>(Arrays.asList("Analysis", "Language", "for", "Distributed", "Embedded"));
+        int topK = 10;
+        double pageRankWeight = 0.15;
+
+        // Start search
+        Iterator<Pair<Document, Double>> iterator = engine.searchQuery(queries, topK, pageRankWeight);
+
+        // Print out results
+        this.printResults(iterator);
+    }
+
+    @Test
+    public void test2() {
+        // Prepare search meta data
+        List<String> queries = new ArrayList<>(Arrays.asList("Downloads", "Publications", "DRE"));
+        int topK = 10;
+        double pageRankWeight = 0.15;
+
+        // Start search
+        Iterator<Pair<Document, Double>> iterator = engine.searchQuery(queries, topK, pageRankWeight);
+
+        // Print out results
+        this.printResults(iterator);
+    }
+
+    private void printResults(Iterator<Pair<Document, Double>> iterator) {
+        // Print out all combined scores
+        while (iterator.hasNext()) {
+            Pair<Document, Double> pair = iterator.next();
+
+            Document document = pair.getLeft();
+            double combinedScore = pair.getRight();
+
+            // Print out result
+            System.out.println("Document: " + document.getText().substring(0, 10) + "...");
+            System.out.println("Combined Score: " + combinedScore);
+        }
     }
 
     @After
@@ -57,35 +110,4 @@ public class IcsSearchEngineTest {
         cacheFolder.delete();
         new File(PATH).delete();
     }
-
-    @Test
-    public void test1() {
-        InvertedIndexManager indexManager = InvertedIndexManager.createOrOpenPositional(PATH, analyzer, compressor);
-        IcsSearchEngine engine = IcsSearchEngine.createSearchEngine(documentDirectory, indexManager);
-
-        // Write all ICS documents to manager
-        engine.writeIndex();
-
-        // Compute page rank scores by given number of iterations
-        engine.computePageRank(999);
-
-        // Search queries
-        List<String> queries = new ArrayList<>(Arrays.asList("Analysis", "Language", "for", "Distributed", "Embedded"));
-        int topK = 10;
-        double pageRankWeight = 0.15;
-        Iterator<Pair<Document, Double>> iterator = engine.searchQuery(queries, topK, pageRankWeight);
-
-        // Print out all combined scores
-        while (iterator.hasNext()) {
-            Pair<Document, Double> pair = iterator.next();
-
-            Document document = pair.getLeft();
-            double combinedScore = pair.getRight();
-
-            // Print out result
-            System.out.println("Document: " + document.getText().substring(0, 10) + "...");
-            System.out.println("Combined Score: " + combinedScore);
-        }
-    }
-
 }
