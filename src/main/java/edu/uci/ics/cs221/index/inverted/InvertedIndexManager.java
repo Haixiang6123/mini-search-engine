@@ -460,6 +460,8 @@ public class InvertedIndexManager {
         byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
         // Encode size list
         byte[] encodedSizeList = this.naiveCompressor.encode(sizeList);
+        // Update size length
+        wordBlock.sizeLength = encodedSizeList.length;
 
         // Markdown global offset bytes length
         wordBlock.listLength = encodedInvertedList.length;
