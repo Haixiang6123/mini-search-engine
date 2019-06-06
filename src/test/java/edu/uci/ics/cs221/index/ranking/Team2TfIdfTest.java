@@ -4,9 +4,9 @@ import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
-import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Test;
@@ -17,7 +17,7 @@ import static org.junit.Assert.assertEquals;
 
 public class Team2TfIdfTest {
     InvertedIndexManager invertedIndexManager;
-    String folderPath = "./ranking/Team2TfIdfTest";
+    String folderPath = "./index/Team2TfIdfTest";
     private Analyzer analyzer = new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer());
     private Compressor compressor = new DeltaVarLenCompressor();
 

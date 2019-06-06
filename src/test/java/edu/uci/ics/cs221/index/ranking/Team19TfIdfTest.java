@@ -2,10 +2,10 @@ package edu.uci.ics.cs221.index.ranking;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
-import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
-import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.index.positional.Compressor;
+import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.positional.NaiveCompressor;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;

@@ -7,7 +7,7 @@ import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -19,8 +19,9 @@ public class Team3TfIdfTest {
     private static String path = "./index/Team3TfIdfTest/";
     private  static Document[] documents;
     private final static int frequencyNum = 20;
-    @BeforeClass
-    public static void init(){
+
+    @Before
+    public void init(){
         iim = InvertedIndexManager.createOrOpenPositional(path,
                 new ComposableAnalyzer(new PunctuationTokenizer(), new PorterStemmer()),
                 new DeltaVarLenCompressor());

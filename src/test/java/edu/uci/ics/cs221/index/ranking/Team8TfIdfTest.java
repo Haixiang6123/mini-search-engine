@@ -3,15 +3,16 @@ package edu.uci.ics.cs221.index.ranking;
 import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
 import edu.uci.ics.cs221.analysis.PorterStemmer;
 import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
+import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.inverted.InvertedIndexManager;
 import edu.uci.ics.cs221.index.inverted.Pair;
-import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.storage.Document;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -32,9 +33,7 @@ public class Team8TfIdfTest {
         documents = new Document[] {
                 new Document("An apple a day keeps a doctor away"),
                 new Document("One rotten apple spoils the whole barrel"),
-                new Document("Fortune knocks once at everyone's rotten door"),
-                new Document("Throw away the apple because of the core")
-
+                new Document("Fortune knocks once at everyone's rotten door")
         };
     }
 
@@ -50,16 +49,21 @@ public class Team8TfIdfTest {
         }
         List<String> keywords = Arrays.asList("apple", "apple", "rotten");
         Iterator<Pair<Document, Double>> res = indexmanger.searchTfIdf(keywords,null);
-        List<Document> resDoc = Arrays.asList(documents[1],documents[2],documents[0],documents[3]);
+        List<Document> expected = Arrays.asList(documents[1],documents[0],documents[2]);
+        List<Document> actual = new ArrayList<>();
         int counter = 0;
-        Double pre = 1.0;
+        Double pre = Double.MAX_VALUE;
         while(res.hasNext()){
-            Double cur = res.next().getRight();
+            Pair<Document, Double> pair = res.next();
+            Document doc = pair.getLeft();
+            Double cur = pair.getRight();
+            actual.add(doc);
             assertTrue(pre >= cur);
             pre = cur;
             counter++;
         }
-        assertEquals(counter,4);
+        assertEquals(3, counter);
+        assertEquals(expected, actual);
     }
 
     /**
@@ -77,10 +81,8 @@ public class Team8TfIdfTest {
         Pair<Document,Double> res1 = res.next();
         Pair<Document,Double> res2 = res.next();
         assertFalse(res.hasNext());
-        assertEquals(res1.getLeft(),documents[1]);
-        assertTrue(res1.getRight()>0.37 && res1.getRight()<0.38);
-        assertEquals(res2.getLeft(),documents[2]);
-        assertTrue(res2.getRight()>0.30 && res2.getRight()<0.31);
+        assertEquals(documents[1], res1.getLeft());
+        assertEquals(documents[0], res2.getLeft());
 
     }
 
