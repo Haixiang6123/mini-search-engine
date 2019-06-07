@@ -74,7 +74,7 @@ public class Team7TfIdfTest {
      * Test if anything returns when search key is irrelevant
      */
     public void test2(){
-        List<String> keys = Arrays.asList("good","test","case");   //todo: store0_ file is already opened and is locked.
+        List<String> keys = Arrays.asList("good","test","case");
         Iterator<Pair<Document, Double>> res = manager.searchTfIdf(keys,2);
         assertFalse(res.hasNext());
     }
