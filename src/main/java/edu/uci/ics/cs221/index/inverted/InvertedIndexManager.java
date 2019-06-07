@@ -13,7 +13,6 @@ import edu.uci.ics.cs221.index.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
-import javafx.util.Pair;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import sun.misc.SoftCache;
 import utils.Utils;
@@ -1218,7 +1217,7 @@ public class InvertedIndexManager {
         PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
             @Override
             public int compare(Pair<Double, DocID> o1, Pair<Double, DocID> o2) {
-                double res = o1.getKey() - o2.getKey();
+                double res = o1.getLeft() - o2.getLeft();
                 if(res == 0)
                     return 0;
                 else return res > 0 ? -1: 1;   // Decreasing order queue.
@@ -1361,10 +1360,10 @@ public class InvertedIndexManager {
         List<Pair<Document, Double>> result = new ArrayList<>();
         for(int i = 0; i < topDocs.size(); i++){
             Pair<Double, DocID> pair = topDocs.get(i);
-            int seg = pair.getValue().segmentID;
-            int locID = pair.getValue().localID;
+            int seg = pair.getRight().segmentID;
+            int locID = pair.getRight().localID;
             DocumentStore documentStore = this.getDocumentStore(segNum, "");
-            result.add( new Pair<Document,Double>(documentStore.getDocument(locID), pair.getKey()));
+            result.add( new Pair<Document,Double>(documentStore.getDocument(locID), pair.getLeft()));
         }
 
         return result.iterator();
