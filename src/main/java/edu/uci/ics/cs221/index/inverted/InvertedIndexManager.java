@@ -1196,7 +1196,7 @@ public class InvertedIndexManager {
                                         right = mid - 1;
                                     }
                                 }
-                                // Add valid position  todo : check validity
+                                // Add valid position
                                 if (left == leftBound && position.get(left) == positionA + 1) {
                                     newValid.add(position.get(left));
                                     leftBound = left;
@@ -1378,14 +1378,12 @@ public class InvertedIndexManager {
         }
 
         List<Pair<Document, Double>> result = new ArrayList<>();
-        // TODO: document store size?
-        // TODO: document store num?
         DocumentStore documentStore = null;
         int docSeg = -1;
         for (int i = topDocs.size() - 1; i >= 0 ; i--) {
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
-            // open this segement's correspoding document store
+            // open this segment's corresponding document store
             if(docSeg != seg) {
                 if(documentStore != null)
                     documentStore.close();
