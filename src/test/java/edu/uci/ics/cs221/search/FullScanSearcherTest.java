@@ -4,6 +4,7 @@ import edu.uci.ics.cs221.analysis.Analyzer;
 import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -14,7 +15,7 @@ import static org.junit.Assert.assertEquals;
 
 public class FullScanSearcherTest {
 
-//    @Test
+    @Test
     public void testFullScanSearch() {
         DocumentStore documentStore = createOrOpen("./docs.db");
 
