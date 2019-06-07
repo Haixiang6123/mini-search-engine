@@ -1,20 +1,17 @@
-
-
 package edu.uci.ics.cs221.index.inverted;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
-import edu.uci.ics.cs221.analysis.WordBreakTokenizer;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
+import edu.uci.ics.cs221.index.positional.NaiveCompressor;
 import edu.uci.ics.cs221.index.positional.PositionalIndexSegmentForTest;
 import edu.uci.ics.cs221.storage.Document;
 import edu.uci.ics.cs221.storage.DocumentStore;
 import edu.uci.ics.cs221.storage.MapdbDocStore;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import sun.misc.SoftCache;
+import edu.uci.ics.cs221.index.inverted.Pair;
 import utils.Utils;
 
 import javax.print.Doc;
@@ -77,6 +74,8 @@ public class InvertedIndexManager {
     private Compressor compressor = null;
     // Support
     private boolean supportPosition = false;
+    private Compressor naiveCompressor = new NaiveCompressor();
+
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
         this.analyzer = analyzer;
@@ -127,7 +126,6 @@ public class InvertedIndexManager {
     /**
      * Creates a positional index with the given folder, analyzer, and the compressor.
      * Compressor must be used to compress the inverted lists and the position lists.
-     *
      */
     public static InvertedIndexManager createOrOpenPositional(String indexFolder, Analyzer analyzer, Compressor compressor) {
         InvertedIndexManager manager = createOrOpen(indexFolder, analyzer);
@@ -173,7 +171,7 @@ public class InvertedIndexManager {
                 this.invertedLists.put(word, new ArrayList<>(Collections.singletonList(newDocId)));
             } else {
                 // Add to exist list
-                if(!documentIds.contains(newDocId))
+                if (!documentIds.contains(newDocId))
                     documentIds.add(newDocId);
             }
         }
@@ -227,7 +225,8 @@ public class InvertedIndexManager {
                     meta.listsPageNum,           // Lists page num
                     meta.listsPageOffset, // List offset
                     documentIds.size(),      // List length
-                    meta.listsPageNum * PageFileChannel.PAGE_SIZE + this.flushListsBuffer.position()
+                    meta.listsPageNum * PageFileChannel.PAGE_SIZE + this.flushListsBuffer.position(),
+                    0
             );
 
             // Flush word and list
@@ -346,10 +345,10 @@ public class InvertedIndexManager {
 
                 // Start to merge
                 this.mergeWordAndList(newSegListsChannel, newSegWordsChannel, newSegPosChannel,
-                                  leftSegPosChannel, rightSegPosChannel,
-                                  this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
-                                  leftListBlock, rightListBlock,
-                                  flag == 1 ? rightWordBlock : leftWordBlock, meta, flag);
+                        leftSegPosChannel, rightSegPosChannel,
+                        this.mergeListsBuffer, this.mergeWordsBuffer, this.mergePosBuffer,
+                        leftListBlock, rightListBlock,
+                        flag == 1 ? rightWordBlock : leftWordBlock, meta, flag);
             }
 
             // Write remaining content from buffer
@@ -437,30 +436,40 @@ public class InvertedIndexManager {
 
         // Encode invertedList
         List<Integer> invertedList = null;
+        List<Integer> sizeList = null;
         switch (flag) {
             // Only left side
             case 0:
                 invertedList = leftListBlock.invertedList;
+                sizeList = leftListBlock.sizeList;
                 break;
             case 1:
                 invertedList = rightListBlock.invertedList;
+                sizeList = rightListBlock.sizeList;
                 break;
             case 2:
                 invertedList = new ArrayList<>();
                 invertedList.addAll(leftListBlock.invertedList);
                 invertedList.addAll(rightListBlock.invertedList);
+                sizeList = new ArrayList<>();
+                sizeList.addAll(leftListBlock.sizeList);
+                sizeList.addAll(rightListBlock.sizeList);
                 break;
         }
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
         // Encode global offset
         byte[] encodedGlobalOffsets = this.compressor.encode(globalOffsets);
+        // Encode size list
+        byte[] encodedSizeList = this.naiveCompressor.encode(sizeList);
+        // Update size length
+        wordBlock.sizeLength = encodedSizeList.length;
 
         // Markdown global offset bytes length
         wordBlock.listLength = encodedInvertedList.length;
         wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
 
         // Flush list block
-        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, encodedSizeList, meta);
 
         // Flush word block
         this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
@@ -470,9 +479,9 @@ public class InvertedIndexManager {
      * Merge: flush position list
      */
     private List<Integer> mergePositionList(PageFileChannel posChannel, ByteBuffer posBuffer,
-                                   PageFileChannel leftPosChannel, PageFileChannel rightPosChannel,
-                                   ListBlock leftListBlock, ListBlock rightListBlock,
-                                   WriteMeta meta, int flag) {
+                                            PageFileChannel leftPosChannel, PageFileChannel rightPosChannel,
+                                            ListBlock leftListBlock, ListBlock rightListBlock,
+                                            WriteMeta meta, int flag) {
         // Merged global offsets
         List<Integer> globalOffsets = new ArrayList<>();
         if (!this.supportPosition) {
@@ -545,10 +554,17 @@ public class InvertedIndexManager {
 
         // Global offsets
         List<Integer> globalOffsets = new ArrayList<>();
-
+        // Position list sizes list
+        byte[] encodedSizeList = new byte[0];
+        // Deal with position list
         if (this.supportPosition) {
-            this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+            // Get size list
+            List<Integer> sizeList = this.flushPositionList(documentStore, posChannel, posBuffer, invertedList, globalOffsets, wordBlock, meta);
+            // Encode size list
+            encodedSizeList = this.naiveCompressor.encode(sizeList);
         }
+        // Update word block size length
+        wordBlock.sizeLength = encodedSizeList.length;
 
         // Encode invertedList
         byte[] encodedInvertedList = this.compressor.encode(invertedList);
@@ -560,7 +576,7 @@ public class InvertedIndexManager {
         wordBlock.globalOffsetLength = encodedGlobalOffsets.length;
 
         // Flush list block
-        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, meta);
+        this.flushListBlock(listsChannel, listsBuffer, encodedInvertedList, encodedGlobalOffsets, encodedSizeList, meta);
 
         // Flush word block
         this.flushWordBlock(wordsChannel, wordsBuffer, wordBlock, meta);
@@ -569,14 +585,17 @@ public class InvertedIndexManager {
     /**
      * Init inverted list and position list
      */
-    private void flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
-                                   List<Integer> invertedList, List<Integer> globalOffsets,
-                                   WordBlock wordBlock, WriteMeta meta) {
+    private List<Integer> flushPositionList(DocumentStore documentStore, PageFileChannel posChannel, ByteBuffer posBuffer,
+                                            List<Integer> invertedList, List<Integer> globalOffsets,
+                                            WordBlock wordBlock, WriteMeta meta) {
+        List<Integer> sizeList = new ArrayList<>();
         // Flush all position lists
         for (Integer id : invertedList) {
             // Get position list
             List<Integer> positionList = Utils.getPositions(documentStore.getDocument(id), wordBlock.word, this.analyzer);
-            // Encode position list  // todo: check compressor.
+            // Add size
+            sizeList.add(positionList.size());
+            // Encode position list
             byte[] encodedPositionList = this.compressor.encode(positionList);
             // Mark down global offset
             globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
@@ -593,12 +612,14 @@ public class InvertedIndexManager {
         }
         // Add end offset
         globalOffsets.add(meta.posPageNum * PageFileChannel.PAGE_SIZE + posBuffer.position());
+
+        return sizeList;
     }
 
     /**
      * Flush inverted list and global offsets
      */
-    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, WriteMeta meta) {
+    private void flushListBlock(PageFileChannel listsChannel, ByteBuffer listsBuffer, byte[] encodedInvertedList, byte[] encodedGlobalOffsets, byte[] encodedSizeList, WriteMeta meta) {
         // Flush inverted list
         for (byte encodedDocId : encodedInvertedList) {
             if (listsBuffer.position() >= listsBuffer.capacity()) {
@@ -616,6 +637,15 @@ public class InvertedIndexManager {
                 listsBuffer.clear();
             }
             listsBuffer.put(encodedGlobalOffset);
+        }
+        // Flush size list
+        for (byte encodedSize : encodedSizeList) {
+            if (listsBuffer.position() >= listsBuffer.capacity()) {
+                listsChannel.writePage(meta.listsPageNum, listsBuffer);
+                meta.listsPageNum += 1;
+                listsBuffer.clear();
+            }
+            listsBuffer.put(encodedSize);
         }
     }
 
@@ -645,7 +675,8 @@ public class InvertedIndexManager {
                 .putInt(wordBlock.listsPageNum) // Page num
                 .putInt(wordBlock.listOffset) // Offset
                 .putInt(wordBlock.listLength) // List length
-                .putInt(wordBlock.globalOffsetLength); // Global offset length
+                .putInt(wordBlock.globalOffsetLength) // Global offset length
+                .putInt(wordBlock.sizeLength); // Size length
     }
 
     /**
@@ -714,7 +745,8 @@ public class InvertedIndexManager {
                         wordsBuffer.getInt(), // Lists page num
                         wordsBuffer.getInt(),  // List offset
                         wordsBuffer.getInt(),   // List length
-                        wordsBuffer.getInt()   //  Global offset length
+                        wordsBuffer.getInt(),   //  Global offset length
+                        wordsBuffer.getInt()   // Size list length
                 );
                 wordBlock.segment = segmentIndex;
                 wordBlocks.add(wordBlock);
@@ -729,10 +761,10 @@ public class InvertedIndexManager {
      */
     private ListBlock getListBlockFromSegment(PageFileChannel listsFileChannel, WordBlock wordBlock) {
         if (wordBlock == null) {
-            return new ListBlock(0, 0);
+            return new ListBlock(0, 0, 0);
         }
         // Init a new list block
-        ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength);
+        ListBlock listBlock = new ListBlock(wordBlock.listLength, wordBlock.globalOffsetLength, wordBlock.sizeLength);
 
         // Get byte buffer
         int page = wordBlock.listsPageNum;
@@ -763,6 +795,18 @@ public class InvertedIndexManager {
         }
         // Decode global offsets
         listBlock.globalOffsets = this.compressor.decode(listBlock.encodedGlobalOffsets);
+
+        // Extract the size list
+        for (int i = 0; i < wordBlock.sizeLength; i++) {
+            // Overflow -> span out pages
+            if (listsByteBuffer.position() >= listsByteBuffer.capacity()) {
+                page += 1;
+                listsByteBuffer = listsFileChannel.readPage(page);
+            }
+            listBlock.encodedSizeList[i] = listsByteBuffer.get();
+        }
+        // Decode size list
+        listBlock.sizeList = this.naiveCompressor.decode(listBlock.encodedSizeList);
 
         return listBlock;
     }
@@ -1008,7 +1052,7 @@ public class InvertedIndexManager {
     /**
      * Performs a phrase search on a positional index.
      * Phrase search means the document must contain the consecutive sequence of keywords in exact order.
-     *
+     * <p>
      * You could assume the analyzer won't convert each keyword into multiple tokens.
      * TODO: Throws UnsupportedOperationException if the inverted index is not a positional index.
      *
@@ -1016,7 +1060,7 @@ public class InvertedIndexManager {
      * @return a iterator of documents matching the query
      */
     public Iterator<Document> searchPhraseQuery(List<String> phrase) {
-        if(this.supportPosition == false)
+        if (this.supportPosition == false)
             throw new UnsupportedOperationException();
 
         Preconditions.checkNotNull(phrase);
@@ -1032,7 +1076,7 @@ public class InvertedIndexManager {
         }
 
         // Return null if no words left.
-        if(analyzed.size() == 0)
+        if (analyzed.size() == 0)
             return documents.iterator();
 
         int i = 0;
@@ -1102,8 +1146,8 @@ public class InvertedIndexManager {
                     }
                 }
 
-               // 3. Validate processed docID
-                if(intersection == null) {
+                // 3. Validate processed docID
+                if (intersection == null) {
                     documentStore.close();
                     wordsChannel.close();
                     listChannel.close();
@@ -1111,19 +1155,19 @@ public class InvertedIndexManager {
                 }
                 // Organize words into Hashmap. ensure the sequence of words in phrase
                 Map<String, WordBlock> filteredWordBlocksMap = new HashMap<>();
-                for(WordBlock wordBlock: filteredWordBlocks){
+                for (WordBlock wordBlock : filteredWordBlocks) {
                     filteredWordBlocksMap.put(wordBlock.word, wordBlock);
                 }
 
                 // Check if docId has valid phrases
-                PageFileChannel positionalChannel = this.getSegmentChannel(i,"positions" );
+                PageFileChannel positionalChannel = this.getSegmentChannel(i, "positions");
                 List<Integer> validDocIds = new ArrayList<>();
-                for(Integer docId: intersection) {
+                for (Integer docId : intersection) {
                     // Store current valid phrase positions
                     List<Integer> validPosition = null;
                     // For each word, find the docId's positional list
                     for (String word : analyzed) {
-                        ListBlock listBlock =  this.getListBlockFromSegment(listChannel, filteredWordBlocksMap.get(word));
+                        ListBlock listBlock = this.getListBlockFromSegment(listChannel, filteredWordBlocksMap.get(word));
 
                         // Read position list for this word in this docId
                         List<Integer> offsetList = listBlock.globalOffsets;
@@ -1131,38 +1175,36 @@ public class InvertedIndexManager {
                         List<Integer> position = this.getPositionList(positionalChannel, offsetList, index);
 
                         // Continue If no position in this document( which is impossible but just in case)
-                        if(position == null ||position.size() == 0)
+                        if (position == null || position.size() == 0)
                             continue;
 
                         // Update validPosition
-                        if(validPosition == null)
+                        if (validPosition == null)
                             validPosition = new ArrayList<>(position);
-                        else{
+                        else {
                             List<Integer> newValid = new ArrayList<>();
                             int leftBound = 0;
                             // find every pair of consecutive position
-                            for(int positionA: validPosition ){    // positionA : previous word
+                            for (int positionA : validPosition) {    // positionA : previous word
                                 // Binary search
-                                int left = leftBound , right = position.size() - 1;
-                                while(left < right)
-                                {
-                                    int mid = (left + right + 1)/2; //right bias
-                                    if(position.get(mid) <= positionA){
+                                int left = leftBound, right = position.size() - 1;
+                                while (left < right) {
+                                    int mid = (left + right + 1) / 2; //right bias
+                                    if (position.get(mid) <= positionA) {
                                         left = mid;
-                                    }
-                                    else {
+                                    } else {
                                         right = mid - 1;
                                     }
                                 }
                                 // Add valid position  todo : check validity
-                                if(left == leftBound && position.get(left) ==  positionA + 1) {
+                                if (left == leftBound && position.get(left) == positionA + 1) {
                                     newValid.add(position.get(left));
                                     leftBound = left;
-                                }else if(left < position.size() - 1 && position.get(left + 1) == positionA + 1) {  //position.get(left) <= A
+                                } else if (left < position.size() - 1 && position.get(left + 1) == positionA + 1) {  //position.get(left) <= A
                                     newValid.add(position.get(left + 1));
                                     leftBound = left + 1;
-                                }else{
-                                    if(position.get(left) <= positionA)
+                                } else {
+                                    if (position.get(left) <= positionA)
                                         leftBound += 1;
                                 }
                             }
@@ -1170,11 +1212,11 @@ public class InvertedIndexManager {
                             validPosition = newValid;
                         }
                         // Break check loop for this docID when no valid position remains
-                        if(validPosition == null || validPosition.size() == 0)
+                        if (validPosition == null || validPosition.size() == 0)
                             break;
                     }
 
-                    if(validPosition != null && validPosition.size() > 0)
+                    if (validPosition != null && validPosition.size() > 0)
                         validDocIds.add(docId);
                 }
 
@@ -1192,36 +1234,29 @@ public class InvertedIndexManager {
         }
 
         return documents.iterator();
-
-//        if(!isPositional)
-//          throw new UnsupportedOperationException();
     }
 
     /**
      * Performs top-K ranked search using TF-IDF.
      * Returns an iterator that returns the top K documents with highest TF-IDF scores.
-     *
+     * <p>
      * Each element is a pair of <Document, Double (TF-IDF Score)>.
-     *
+     * <p>
      * If parameter `topK` is null, then returns all the matching documents.
-     *
+     * <p>
      * Unlike Boolean Query and Phrase Query where order of the documents doesn't matter,
      * for ranked search, order of the document returned by the iterator matters.
      *
      * @param topK, number of top documents weighted by TF-IDF, all documents if topK is null
-     * @return a iterator of top-k ordered documents matching the query
      * @return a iterator of ordered documents matching the query
      */
     public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) { // todo:modify the return .
         // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
-        PriorityQueue<Pair<Double,DocID>> priorityQueue = new PriorityQueue<>(new Comparator<Pair<Double, DocID>>() {
-            @Override
-            public int compare(Pair<Double, DocID> o1, Pair<Double, DocID> o2) {
-                double res = o1.getLeft() - o2.getLeft();
-                if(res == 0)
-                    return 0;
-                else return res > 0 ? -1: 1;   // Decreasing order queue.
-            }
+        PriorityQueue<Pair<Double, DocID>> priorityQueue = new PriorityQueue<>((o1, o2) -> {
+            double res = o1.getLeft() - o2.getLeft();
+            if (res == 0)
+                return 0;
+            else return res > 0 ? -1 : 1;   // Decreasing order queue.
         });
 
         // Analyze phrase words
@@ -1238,7 +1273,7 @@ public class InvertedIndexManager {
         // Pass 1: get each word's document frequency; and overall document num
         int globalDocNum = 0;
         // Map< word, documentAmount >
-        Map<String, Integer> documentFrequrncy = new HashMap<>();
+        Map<String, Integer> documentFrequency = new HashMap<>();
         int segNum = 0;
         while (true) {
             if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
@@ -1256,8 +1291,8 @@ public class InvertedIndexManager {
                 for (WordBlock wordBlock : wordBlockList) {
                     if (uniqueTerms.contains(wordBlock.word)) {
                         ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
-                        int originDocNum = documentFrequrncy.getOrDefault(wordBlock.word, 0);
-                        documentFrequrncy.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
+                        int originDocNum = documentFrequency.getOrDefault(wordBlock.word, 0);
+                        documentFrequency.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
                     }
                 }
 
@@ -1272,11 +1307,11 @@ public class InvertedIndexManager {
         // Map < term, tfidf >
         Map<String, Double> queryVector = new HashMap<>();
         // Calc term frequency
-        for(String term: analyzed){
+        for (String term : analyzed) {
             // Get oldVal : Term may duplicates
             double origin = queryVector.getOrDefault(term, 0.0);
             // accumulate one more "idf"
-            double newVal = origin + globalDocNum/(double)documentFrequrncy.getOrDefault(term, 0);  // usually doc freq is not 0
+            double newVal = origin + globalDocNum / (double) documentFrequency.getOrDefault(term, 0);  // usually doc freq is not 0
             queryVector.put(term, newVal);
         }
 
@@ -1309,36 +1344,36 @@ public class InvertedIndexManager {
 
                 // Cumulate doc info
                 List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segNum);
-                for(WordBlock wordBlock: wordBlockList){
-                    if(uniqueTerms.contains(wordBlock.word)){
+                for (WordBlock wordBlock : wordBlockList) {
+                    if (uniqueTerms.contains(wordBlock.word)) {
                         String term = wordBlock.word;
                         ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
 
                         // For each docID, accumulate the product
-                        for(int index = 0; index < listBlock.invertedList.size(); index++){
+                        for (int index = 0; index < listBlock.invertedList.size(); index++) {
                             int docId = listBlock.invertedList.get(index);
-                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
-                            List<Integer> positionList = this.getPositionList(positionPage,listBlock.globalOffsets, index); // term freq//todo check global offset
+//                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
+//                            List<Integer> positionList = this.getPositionList(positionPage, listBlock.globalOffsets, index); // term freq//todo check global offset
+                            int positionListSize = listBlock.sizeList.get(index);
                             // Calc tfidf
-                            double tfidf = positionList.size() * (globalDocNum / (double)documentFrequrncy.getOrDefault(term, 0));
+                            double tfidf = positionListSize * (globalDocNum / (double) documentFrequency.getOrDefault(term, 0));
                             // Update doc * query ; Update (doc)^2
                             DocID curDoc = new DocID(segNum, docId);
                             double oldProduct = dotProductAccumulator.getOrDefault(curDoc, 0.0);
                             dotProductAccumulator.put(curDoc, oldProduct + tfidf * queryVector.get(term));
                             double oldLength = vectorLengthAccumulator.getOrDefault(curDoc, 0.0);
-                            vectorLengthAccumulator.put(curDoc, oldLength + tfidf*tfidf);
+                            vectorLengthAccumulator.put(curDoc, oldLength + tfidf * tfidf);
                         }
                     }
                 }
 
-                // Conclude socres for documents:
-                for(DocID docId: dotProductAccumulator.keySet()) {
+                // Conclude scores for documents:
+                for (DocID docId : dotProductAccumulator.keySet()) {
                     double sc = dotProductAccumulator.get(docId) / Math.sqrt(vectorLengthAccumulator.get(docId));
                     scores.put(docId, sc);
                     priorityQueue.add(new Pair<>(sc, docId));
                     // Keep queue size in range of K // if topK == 0 , skip polling
-                    if(topK > 0 && priorityQueue.size() > topK)
-                    {
+                    if (topK > 0 && priorityQueue.size() > topK) {
                         priorityQueue.poll();
                     }
                 }
@@ -1351,24 +1386,24 @@ public class InvertedIndexManager {
 
         // Pass 3: retrieve doc ID from pair; reorganize docID sequence
         List<Pair<Double, DocID>> topDocs = new ArrayList<>();
-        while(!priorityQueue.isEmpty()){
+        while (!priorityQueue.isEmpty()) {
             Pair<Double, DocID> pair = priorityQueue.poll();
-            if(priorityQueue.size() < topK)
+            if (priorityQueue.size() < topK)
                 topDocs.add(pair);
         }
 
         List<Pair<Document, Double>> result = new ArrayList<>();
-        for(int i = 0; i < topDocs.size(); i++){
+        // TODO: document store size?
+        // TODO: document store num?
+        DocumentStore documentStore = this.getDocumentStore(segNum - 1, "");
+        for (int i = 0; i < topDocs.size(); i++) {
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
             int locID = pair.getRight().localID;
-            DocumentStore documentStore = this.getDocumentStore(segNum, "");
-            result.add( new Pair<Document,Double>(documentStore.getDocument(locID), pair.getLeft()));
+            result.add(new Pair<>(documentStore.getDocument(locID), pair.getLeft()));
         }
 
         return result.iterator();
-
-//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1376,10 +1411,9 @@ public class InvertedIndexManager {
      */
     public int getNumDocuments(int segmentNum) {
         DocumentStore documentStore = this.getDocumentStore(segmentNum, "");
-        int result =  (int)documentStore.size();
+        int result = (int) documentStore.size();
         documentStore.close();
         return result;
-//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1393,7 +1427,7 @@ public class InvertedIndexManager {
 
         List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segmentNum);
         // Search for token
-        for(WordBlock wordBlock: wordBlockList ){
+        for (WordBlock wordBlock : wordBlockList) {
             if (wordBlock.word.equals(token)) {
                 // Read posting list and get size
                 ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
@@ -1409,7 +1443,6 @@ public class InvertedIndexManager {
         listPage.close();
 
         return 0;
-//        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1503,7 +1536,7 @@ public class InvertedIndexManager {
     /**
      * Reads a disk segment of a positional index into memory based on segmentNum.
      * This function is mainly used for checking correctness in test cases.
-     *
+     * <p>
      * Throws UnsupportedOperationException if the inverted index is not a positional index.
      *
      * @param segmentNum n-th segment in the inverted index (start from 0).
