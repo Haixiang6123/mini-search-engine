@@ -1252,11 +1252,12 @@ public class InvertedIndexManager {
      */
     public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) { // todo:modify the return .
         // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
+        //The head of this queue is the least element
         PriorityQueue<Pair<Double, DocID>> priorityQueue = new PriorityQueue<>((o1, o2) -> {
             double res = o1.getLeft() - o2.getLeft();
             if (res == 0)
                 return 0;
-            else return res > 0 ? -1 : 1;   // Decreasing order queue.
+            else return res > 0 ? 1 : -1;   // Make head of queue always the smallest element
         });
 
         // Analyze phrase words
@@ -1316,20 +1317,6 @@ public class InvertedIndexManager {
         }
 
         // Pass 2: get each doc's term frequency, get tf-idf, then multiply with queue vector element by element and do cumulation
-        /**
-         * Map<DocID, Double> dotProductAccumulator; //  DocID is <SegmentID, LocalDocID>
-         * Map<DocID, Double> vectorLengthAccumulator;
-         *
-         * for each segment:
-         *   for each query token w:
-         *     for each docID on the postingList of w:
-         *       tfidf = TF(w, docID) * IDF(w);
-         *       dotProductAccumulator[docID] += tfidf * queryTfIdf[w];
-         *       vectorLengthAccumulator[docID] += tfidf ^ 2;
-         *
-         *   for each docID in this segment
-         *     score(docID) =  dotProductAccumulator[docID] / sqrt(vectorLengthAccumulator[docID]);
-         */
         segNum = 0;
         while (true) {
             if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
@@ -1352,8 +1339,6 @@ public class InvertedIndexManager {
                         // For each docID, accumulate the product
                         for (int index = 0; index < listBlock.invertedList.size(); index++) {
                             int docId = listBlock.invertedList.get(index);
-//                            PageFileChannel positionPage = this.getSegmentChannel(segNum, "positions");
-//                            List<Integer> positionList = this.getPositionList(positionPage, listBlock.globalOffsets, index); // term freq//todo check global offset
                             int positionListSize = listBlock.sizeList.get(index);
                             // Calc tfidf
                             double tfidf = positionListSize * (globalDocNum / (double) documentFrequency.getOrDefault(term, 0));
@@ -1372,8 +1357,8 @@ public class InvertedIndexManager {
                     double sc = dotProductAccumulator.get(docId) / Math.sqrt(vectorLengthAccumulator.get(docId));
                     scores.put(docId, sc);
                     priorityQueue.add(new Pair<>(sc, docId));
-                    // Keep queue size in range of K // if topK == 0 , skip polling
-                    if (topK > 0 && priorityQueue.size() > topK) {
+                    // Keep queue size in range of K // if topK == null , skip polling
+                    if (topK != null && priorityQueue.size() > topK) {
                         priorityQueue.poll();
                     }
                 }
@@ -1384,24 +1369,33 @@ public class InvertedIndexManager {
             segNum++;
         }
 
-        // Pass 3: retrieve doc ID from pair; reorganize docID sequence
+        // Pass 3: retrieve doc ID from pair: arrange them in increasing order; reorganize docID sequence
         List<Pair<Double, DocID>> topDocs = new ArrayList<>();
         while (!priorityQueue.isEmpty()) {
             Pair<Double, DocID> pair = priorityQueue.poll();
-            if (priorityQueue.size() < topK)
+            if (topK == null || priorityQueue.size() < topK )            // discard pair that is not topK
                 topDocs.add(pair);
         }
 
         List<Pair<Document, Double>> result = new ArrayList<>();
         // TODO: document store size?
         // TODO: document store num?
-        DocumentStore documentStore = this.getDocumentStore(segNum - 1, "");
-        for (int i = 0; i < topDocs.size(); i++) {
+        DocumentStore documentStore = null;
+        int docSeg = -1;
+        for (int i = topDocs.size() - 1; i >= 0 ; i--) {
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
+            // open this segement's correspoding document store
+            if(docSeg != seg) {
+                if(documentStore != null)
+                    documentStore.close();
+                documentStore = this.getDocumentStore(seg, "");
+            }
             int locID = pair.getRight().localID;
             result.add(new Pair<>(documentStore.getDocument(locID), pair.getLeft()));
         }
+        if(documentStore != null)
+            documentStore.close();
 
         return result.iterator();
     }
