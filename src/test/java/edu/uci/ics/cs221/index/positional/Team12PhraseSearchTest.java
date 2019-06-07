@@ -90,7 +90,7 @@ public class Team12PhraseSearchTest {
 
     }
 
-    /** //todo : deal with null compressor
+    /**
      * tests if the inverted index is not a positional index should throw an UnsupportedOperationException
      */
     @Test(expected = UnsupportedOperationException.class)

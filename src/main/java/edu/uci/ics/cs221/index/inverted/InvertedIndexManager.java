@@ -877,7 +877,7 @@ public class InvertedIndexManager {
             i++;
         }
 
-        return doc.iterator();  //todo iterator for docStore?
+        return doc.iterator();
 
     }
 
@@ -1054,7 +1054,7 @@ public class InvertedIndexManager {
      * Phrase search means the document must contain the consecutive sequence of keywords in exact order.
      * <p>
      * You could assume the analyzer won't convert each keyword into multiple tokens.
-     * TODO: Throws UnsupportedOperationException if the inverted index is not a positional index.
+     * Throws UnsupportedOperationException if the inverted index is not a positional index.
      *
      * @param phrase, a consecutive sequence of keywords
      * @return a iterator of documents matching the query
@@ -1068,12 +1068,7 @@ public class InvertedIndexManager {
         List<Document> documents = new ArrayList<>();
 
         // Analyze phrase words
-        ArrayList<String> analyzed = new ArrayList<>();
-        for (String keyword : phrase) {
-            List<String> result = this.analyzer.analyze(keyword);
-            if (result != null && result.size() > 0 && !result.get(0).equals(""))  // This word might be a stop word
-                analyzed.addAll(result);
-        }
+        ArrayList<String> analyzed = this.getAnalyzed(phrase);
 
         // Return null if no words left.
         if (analyzed.size() == 0)
@@ -1196,7 +1191,7 @@ public class InvertedIndexManager {
                                         right = mid - 1;
                                     }
                                 }
-                                // Add valid position  todo : check validity
+                                // Add valid position
                                 if (left == leftBound && position.get(left) == positionA + 1) {
                                     newValid.add(position.get(left));
                                     leftBound = left;
@@ -1212,7 +1207,7 @@ public class InvertedIndexManager {
                             validPosition = newValid;
                         }
                         // Break check loop for this docID when no valid position remains
-                        if (validPosition == null || validPosition.size() == 0)
+                        if (validPosition.size() == 0)
                             break;
                     }
 
@@ -1250,9 +1245,7 @@ public class InvertedIndexManager {
      * @param topK, number of top documents weighted by TF-IDF, all documents if topK is null
      * @return a iterator of ordered documents matching the query
      */
-    public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) { // todo:modify the return .
-        // queue< Pair<score,  DocID>  // DocID is <SegmentID, LocalDocID>
-        //The head of this queue is the least element
+    public Iterator<Pair<Document, Double>> searchTfIdf(List<String> keywords, Integer topK) {
         PriorityQueue<Pair<Double, DocID>> priorityQueue = new PriorityQueue<>((o1, o2) -> {
             double res = o1.getLeft() - o2.getLeft();
             if (res == 0)
@@ -1261,34 +1254,70 @@ public class InvertedIndexManager {
         });
 
         // Analyze phrase words
-        ArrayList<String> analyzed = new ArrayList<>();
-        for (String keyword : keywords) {
-            List<String> result = this.analyzer.analyze(keyword);
-            // add possible keywords
-            if (result != null && result.size() > 0 && !result.get(0).equals(""))
-                analyzed.addAll(result);
-        }
-
+        ArrayList<String> analyzed = this.getAnalyzed(keywords);
         Set<String> uniqueTerms = new HashSet<>(analyzed);
 
         // Pass 1: get each word's document frequency; and overall document num
-        int globalDocNum = 0;
-        // Map< word, documentAmount >
-        Map<String, Integer> documentFrequency = new HashMap<>();
+        Map<String, Integer> documentFrequency = new HashMap<>();    // Map(word, documentAmount)
+        int globalDocNum = this.tfidfPass1(uniqueTerms,documentFrequency);
+
+        // Part 1.5: Calculate query's tf-idf vector
+        Map<String, Double> queryVector = new HashMap<>();    // Map < term, tfidf >
+        for (String term : analyzed) {
+            double origin = queryVector.getOrDefault(term, 0.0);     // Get oldVal : Term may duplicates
+            double newVal = origin + globalDocNum / (double) documentFrequency.getOrDefault(term, 0);  // usually doc freq is not 0
+            queryVector.put(term, newVal);
+        }
+
+        // Pass 2: get each doc's term frequency, get tf-idf, then multiply with queue vector element by element and do cumulation
+        tfidfPass2(uniqueTerms,globalDocNum, documentFrequency, queryVector, priorityQueue, topK);
+
+        // End 3: Get ordered docIDs from PriorityQueue heap
+        List<Pair<Double, DocID>> topDocs = this.priorityQueue2OrderedList(priorityQueue,topK);
+
+        // End 4: Read Documents from stores
+        List<Pair<Document, Double>> result = this.retrieveScoredDocuments(topDocs);
+
+        return result.iterator();
+    }
+
+    /**
+     *  Used by searchTfIdf
+     * @param keywords
+     * @return
+     */
+    private ArrayList<String> getAnalyzed(List<String> keywords) {
+        ArrayList<String> analyzed = new ArrayList<>();
+        for (String keyword : keywords) {
+            List<String> result = this.analyzer.analyze(keyword);
+            // add all possible keywords
+            if (result != null && result.size() > 0 && !result.get(0).equals(""))
+                analyzed.addAll(result);
+        }
+        return analyzed;
+    }
+
+    /** Accumulate words' document Frequency through all segments
+     * used by search TfIdf
+     * Words are analyzed
+     * @param uniqueTerms
+     * @param documentFrequency
+     * @return totalDocNum
+     */
+    private int tfidfPass1(Set<String> uniqueTerms, Map<String, Integer> documentFrequency ){
+        int totalDocNum = 0;
         int segNum = 0;
         while (true) {
             if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
                 break;
             } else {
-                // int df = this.getDocumentFrequency(segNum, analyzed[j])
-                // Accumulate overall doc Num:
-                globalDocNum += this.getNumDocuments(segNum);
+                totalDocNum += this.getNumDocuments(segNum);
                 // Open words list, search word
                 PageFileChannel wordPage = this.getSegmentChannel(segNum, "words");
                 PageFileChannel listPage = this.getSegmentChannel(segNum, "lists");
 
                 List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segNum);
-                // Filter analyzed words
+                // For analyzed words : accumulate document size.
                 for (WordBlock wordBlock : wordBlockList) {
                     if (uniqueTerms.contains(wordBlock.word)) {
                         ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
@@ -1296,28 +1325,33 @@ public class InvertedIndexManager {
                         documentFrequency.put(wordBlock.word, originDocNum + listBlock.invertedList.size());
                     }
                 }
-
                 // close pages.
                 wordPage.close();
                 listPage.close();
             }
             segNum++;
         }
+        return totalDocNum;
+    }
 
-        // calculate query's tf-idf vector
-        // Map < term, tfidf >
-        Map<String, Double> queryVector = new HashMap<>();
-        // Calc term frequency
-        for (String term : analyzed) {
-            // Get oldVal : Term may duplicates
-            double origin = queryVector.getOrDefault(term, 0.0);
-            // accumulate one more "idf"
-            double newVal = origin + globalDocNum / (double) documentFrequency.getOrDefault(term, 0);  // usually doc freq is not 0
-            queryVector.put(term, newVal);
-        }
-
-        // Pass 2: get each doc's term frequency, get tf-idf, then multiply with queue vector element by element and do cumulation
-        segNum = 0;
+    /** Pass 2: Get each doc's term frequency, get tf-idf,
+     *          Then multiply with queue vector element by element and do cumulation
+     * Used by searchTfIdf
+     * @param uniqueTerms
+     * @param globalDocNum
+     * @param documentFrequency
+     * @param queryVector
+     * @param priorityQueue
+     * @param topK
+     */
+    private void tfidfPass2(Set<String> uniqueTerms,
+                            int globalDocNum,
+                            Map<String, Integer> documentFrequency,
+                            Map<String, Double> queryVector,
+                            PriorityQueue<Pair<Double, DocID>> priorityQueue,
+                            Integer topK)
+    {
+        int segNum = 0;
         while (true) {
             if (!Files.exists(basePath.resolve("segment" + segNum + "_words"))) {
                 break;
@@ -1368,24 +1402,34 @@ public class InvertedIndexManager {
             }
             segNum++;
         }
+    }
 
-        // Pass 3: retrieve doc ID from pair: arrange them in increasing order; reorganize docID sequence
+    /**
+     * Used by searchTfIdf
+     */
+    private List<Pair<Double, DocID>> priorityQueue2OrderedList(PriorityQueue<Pair<Double, DocID>> priorityQueue, Integer topK){
         List<Pair<Double, DocID>> topDocs = new ArrayList<>();
         while (!priorityQueue.isEmpty()) {
             Pair<Double, DocID> pair = priorityQueue.poll();
             if (topK == null || priorityQueue.size() < topK )            // discard pair that is not topK
                 topDocs.add(pair);
         }
+        return topDocs;
+    }
 
+    /**
+     * This function is used by searchTfIdf.
+     * @param topDocs
+     * @return
+     */
+    private List<Pair<Document, Double>> retrieveScoredDocuments(List<Pair<Double, DocID>> topDocs){
         List<Pair<Document, Double>> result = new ArrayList<>();
-        // TODO: document store size?
-        // TODO: document store num?
         DocumentStore documentStore = null;
         int docSeg = -1;
         for (int i = topDocs.size() - 1; i >= 0 ; i--) {
             Pair<Double, DocID> pair = topDocs.get(i);
             int seg = pair.getRight().segmentID;
-            // open this segement's correspoding document store
+            // Open this segment's corresponding document store
             if(docSeg != seg) {
                 if(documentStore != null)
                     documentStore.close();
@@ -1397,7 +1441,7 @@ public class InvertedIndexManager {
         if(documentStore != null)
             documentStore.close();
 
-        return result.iterator();
+        return result;
     }
 
     /**
