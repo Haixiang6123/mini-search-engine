@@ -103,11 +103,11 @@ public class IcsSearchEngine {
         for (File document : documents) {
             // Read document text
             String documentText = FileUtils.readFileAsString(document, null);
-            System.out.println(documentText);
 
             // Add document to index manager
             indexManager.addDocument(new Document(documentText));
         }
+        System.out.println("Finish");
     }
 
     /**

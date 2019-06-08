@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets;
 
 public class FileUtils {
     public static String readFileAsString(File file, ReadFileCallback callback) {
-        StringBuilder stringBuilder = new StringBuilder();
+        StringBuilder content = new StringBuilder();
         try {
             InputStreamReader inputStreamReader = new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8);
             BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
@@ -15,16 +15,17 @@ public class FileUtils {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 // Build a string
-                stringBuilder.append(line);
+                content.append(line).append("\n");
                 // Read file callback
                 if (callback != null) {
                     callback.callback(line);
                 }
             }
+            content = new StringBuilder(content.substring(0, content.length() - 1));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return stringBuilder.toString();
+        return content.toString();
     }
 }

@@ -30,7 +30,6 @@ public class IcsSearchEngineTest {
 
     @Before
     public void setup() {
-        // TODO: Check webpages path
         URL documentResource = IcsSearchEngine.class.getClassLoader().getResource("webpages");
         Path documentDirectory = Paths.get(documentResource.getPath());
 
