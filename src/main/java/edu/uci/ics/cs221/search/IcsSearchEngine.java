@@ -51,7 +51,7 @@ public class IcsSearchEngine {
     private void readUrlTsv(Path documentDirectory) {
         File urlTsv = new File(documentDirectory.resolve("url.tsv").toString());
         FileUtils.readFileAsString(urlTsv, line -> {
-            String[] idUrlStrings = line.split(" ");
+            String[] idUrlStrings = line.split("\t");
             Integer docId = Integer.valueOf(idUrlStrings[0]);
             String url = idUrlStrings[1];
             // Add to map
@@ -68,7 +68,7 @@ public class IcsSearchEngine {
     private void readIdGraphTsv(Path documentDirectory) {
         File idGraphTsv = new File(documentDirectory.resolve("id-graph.tsv").toString());
         FileUtils.readFileAsString(idGraphTsv, line -> {
-            String[] idPair = line.split(" ");
+            String[] idPair = line.split("\t");
             int fromDocId = Integer.valueOf(idPair[0]);
             int toDocId = Integer.valueOf(idPair[1]);
 
@@ -103,6 +103,7 @@ public class IcsSearchEngine {
         for (File document : documents) {
             // Read document text
             String documentText = FileUtils.readFileAsString(document, null);
+            System.out.println(documentText);
 
             // Add document to index manager
             indexManager.addDocument(new Document(documentText));
