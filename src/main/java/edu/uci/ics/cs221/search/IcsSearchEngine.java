@@ -198,6 +198,7 @@ public class IcsSearchEngine {
 
             // Get global document Id
             int docId = Integer.valueOf(document.getText().split("\n")[0]);
+            System.out.println(docId);
             // Get page rank score
             double pageRankScore = pageRankScoresMap.get(docId);
 
