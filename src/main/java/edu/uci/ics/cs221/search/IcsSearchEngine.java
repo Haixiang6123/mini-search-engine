@@ -51,7 +51,7 @@ public class IcsSearchEngine {
     private void readUrlTsv(Path documentDirectory) {
         File urlTsv = new File(documentDirectory.resolve("url.tsv").toString());
         FileUtils.readFileAsString(urlTsv, line -> {
-            String[] idUrlStrings = line.split("\t");
+            String[] idUrlStrings = line.split("\\s");
             Integer docId = Integer.valueOf(idUrlStrings[0]);
             String url = idUrlStrings[1];
             // Add to map
@@ -68,7 +68,7 @@ public class IcsSearchEngine {
     private void readIdGraphTsv(Path documentDirectory) {
         File idGraphTsv = new File(documentDirectory.resolve("id-graph.tsv").toString());
         FileUtils.readFileAsString(idGraphTsv, line -> {
-            String[] idPair = line.split("\t");
+            String[] idPair = line.split("\\s");
             int fromDocId = Integer.valueOf(idPair[0]);
             int toDocId = Integer.valueOf(idPair[1]);
 
@@ -107,7 +107,6 @@ public class IcsSearchEngine {
             // Add document to index manager
             indexManager.addDocument(new Document(documentText));
         }
-        System.out.println("Finish");
     }
 
     /**
@@ -117,7 +116,7 @@ public class IcsSearchEngine {
     public void computePageRank(int numIterations) {
         double dumpFactor = 0.85;
         // N time numIterations
-        for (int i = 0; i <= numIterations; i++) {
+        for (int i = 1; i <= numIterations; i++) {
             // Compute new page rank score for each document
             for (Map.Entry<Integer, Double> idScore: this.pageRankScoresMap.entrySet()) {
                 // Get current document id
@@ -128,12 +127,13 @@ public class IcsSearchEngine {
 
                 // Get documents that are pointing to current doc Id
                 List<Integer> fromDocIds = this.inverseIdGraph.get(toDocId);
+                if (fromDocIds != null) {
+                    for (Integer fromDocId : fromDocIds) {
+                        double fromDocScore = this.pageRankScoresMap.get(fromDocId);
+                        double outDegrees = this.idGraph.get(fromDocId).size();
 
-                for (Integer fromDocId : fromDocIds) {
-                    double fromDocScore = this.pageRankScoresMap.get(fromDocId);
-                    double outDegrees = this.idGraph.get(fromDocId).size();
-
-                    sum += (fromDocScore / outDegrees);
+                        sum += (fromDocScore / outDegrees);
+                    }
                 }
                 // Update sum with dump factor
                 newToDocScore += dumpFactor * sum;
@@ -145,6 +145,17 @@ public class IcsSearchEngine {
 
         // Convert HashMap to ArrayList
         this.pageRankScores = Utils.convertMapToList(this.pageRankScoresMap);
+        this.pageRankScores.sort((o1, o2) -> {
+            if (o1.getRight() > o2.getRight()) {
+                return -1;
+            }
+            else if (o1.getRight() < o2.getRight()) {
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        });
     }
 
     /**
