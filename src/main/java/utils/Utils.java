@@ -86,6 +86,8 @@ public class Utils {
                 if (wordBlock1.word.equals(wordBlock2.word)) {
                     mergedWordBlock.isSingle = false;
                     mergedWordBlock.rightWordBlock = wordBlock2;
+                    // Remove it from word block list 2
+                    list2.remove(wordBlock2);
                     break;
                 }
             }

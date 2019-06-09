@@ -100,14 +100,12 @@ public class IcsSearchEngine {
         File[] documents = documentDir.listFiles();
         if (documents == null) { return; }
         // Parse to documents
-        int count = 0;
         for (File document : documents) {
             // Read document text
             String documentText = FileUtils.readFileAsString(document, null);
 
             // Add document to index manager
             indexManager.addDocument(new Document(documentText));
-            count++;
         }
     }
 
@@ -117,6 +115,9 @@ public class IcsSearchEngine {
      */
     public void computePageRank(int numIterations) {
         double dumpFactor = 0.85;
+        Map<Integer, Double> prevPageRankScores = this.initPrevPageRankScores();
+        Map<Integer, Double> curtPageRankScores = this.pageRankScoresMap;
+        Map<Integer, Double> tempHashMap;
         // N time numIterations
         for (int i = 1; i <= numIterations; i++) {
             // Compute new page rank score for each document
@@ -131,7 +132,7 @@ public class IcsSearchEngine {
                 List<Integer> fromDocIds = this.inverseIdGraph.get(toDocId);
                 if (fromDocIds != null) {
                     for (Integer fromDocId : fromDocIds) {
-                        double fromDocScore = this.pageRankScoresMap.get(fromDocId);
+                        double fromDocScore = prevPageRankScores.get(fromDocId);
                         double outDegrees = this.idGraph.get(fromDocId).size();
 
                         sum += (fromDocScore / outDegrees);
@@ -141,17 +142,35 @@ public class IcsSearchEngine {
                 newToDocScore += dumpFactor * sum;
 
                 // Update new score for current score
-                this.pageRankScoresMap.put(toDocId, newToDocScore);
+                curtPageRankScores.put(toDocId, newToDocScore);
             }
+
+            // Swap hash map
+            tempHashMap = curtPageRankScores;
+            curtPageRankScores = prevPageRankScores;
+            prevPageRankScores = tempHashMap;
         }
 
         // Convert HashMap to ArrayList
-        this.pageRankScores = Utils.convertMapToList(this.pageRankScoresMap);
+        this.pageRankScores = Utils.convertMapToList(prevPageRankScores);
         this.pageRankScores.sort((o1, o2) -> {
             if (o1.getRight() > o2.getRight()) { return -1; }
             else if (o1.getRight() < o2.getRight()) { return 1; }
             else { return 0; }
         });
+    }
+
+    /**
+     * Prepare cache page rank score
+     */
+    private Map<Integer, Double> initPrevPageRankScores() {
+        Map<Integer, Double> prevPageRankScores = new HashMap<>();
+
+        for (Map.Entry<Integer, Double> entry : this.pageRankScoresMap.entrySet()) {
+            prevPageRankScores.put(entry.getKey(), 1.0);
+        }
+
+        return prevPageRankScores;
     }
 
     /**
@@ -201,14 +220,20 @@ public class IcsSearchEngine {
             topKScores.add(new Pair<>(document, tfIdfScore + pageRankWeight * pageRankScore));
         }
 
+        System.out.println("do: " + topK + " : " + topKScores.size());
         // Sort scores
         topKScores.sort((o1, o2) -> {
             if (o1.getRight() > o2.getRight()) { return -1; }
             else if (o1.getRight() < o2.getRight()) { return 1; }
             else { return 0; }
         });
+        System.out.println("do sorted: " + topK + " : " + topKScores.size());
+        List<Pair<Document, Double>> list = topKScores.subList(0, topK);
+        System.out.println("do subed: " + topK + " : " + list.size());
+        System.out.println("list");
+        System.out.println(Utils.stringifyList(list));
         // Get top k items
-        return topKScores.subList(0, topK).iterator();
+        return list.iterator();
     }
 
 }

@@ -112,7 +112,7 @@ public class IcsSearchEngineTest {
         ImmutableList<Pair<Document, Double>> resultList = ImmutableList.copyOf(resultIterator);
         Assert.assertEquals(10, resultList.size());
         Assert.assertTrue(resultList.stream().limit(3).map(p -> p.getLeft())
-                .anyMatch(doc -> doc.getText().contains("wics.ics.uci.edu")));
+                .anyMatch((Document doc) -> doc.getText().contains("wics.ics.uci.edu")));
     }
 
     /**
