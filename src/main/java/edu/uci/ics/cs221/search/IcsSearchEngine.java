@@ -100,12 +100,14 @@ public class IcsSearchEngine {
         File[] documents = documentDir.listFiles();
         if (documents == null) { return; }
         // Parse to documents
+        int count = 0;
         for (File document : documents) {
             // Read document text
             String documentText = FileUtils.readFileAsString(document, null);
 
             // Add document to index manager
             indexManager.addDocument(new Document(documentText));
+            count++;
         }
     }
 
@@ -146,15 +148,9 @@ public class IcsSearchEngine {
         // Convert HashMap to ArrayList
         this.pageRankScores = Utils.convertMapToList(this.pageRankScoresMap);
         this.pageRankScores.sort((o1, o2) -> {
-            if (o1.getRight() > o2.getRight()) {
-                return -1;
-            }
-            else if (o1.getRight() < o2.getRight()) {
-                return 1;
-            }
-            else {
-                return 0;
-            }
+            if (o1.getRight() > o2.getRight()) { return -1; }
+            else if (o1.getRight() < o2.getRight()) { return 1; }
+            else { return 0; }
         });
     }
 
@@ -185,7 +181,7 @@ public class IcsSearchEngine {
         // Top K list
         List<Pair<Document, Double>> topKScores = new ArrayList<>();
         // Use TfIdf to search documents
-        Iterator<Pair<Document, Double>> topKTfIdfScores = this.indexManager.searchTfIdf(query, topK);
+        Iterator<Pair<Document, Double>> topKTfIdfScores = this.indexManager.searchTfIdf(query, null);
         // Retrieve corresponding PageRank score
         List<Pair<Integer, Double>> pageRankScores = this.getPageRankScores();
         Map<Integer, Double> pageRankScoresMap = Utils.convertListToMap(pageRankScores);
@@ -198,13 +194,21 @@ public class IcsSearchEngine {
 
             // Get global document Id
             int docId = Integer.valueOf(document.getText().split("\n")[0]);
-            System.out.println(docId);
             // Get page rank score
             double pageRankScore = pageRankScoresMap.get(docId);
 
             // Combine tf-idf score and page rank score
             topKScores.add(new Pair<>(document, tfIdfScore + pageRankWeight * pageRankScore));
         }
+
+        // Sort scores
+        topKScores.sort((o1, o2) -> {
+            if (o1.getRight() > o2.getRight()) { return -1; }
+            else if (o1.getRight() < o2.getRight()) { return 1; }
+            else { return 0; }
+        });
+        // Get top k items
+        topKScores.subList(0, topK);
 
         return topKScores.iterator();
     }

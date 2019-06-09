@@ -1,6 +1,7 @@
 package utils;
 
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.PunctuationTokenizer;
 import edu.uci.ics.cs221.index.inverted.MergedWordBlock;
 import edu.uci.ics.cs221.index.inverted.Pair;
 import edu.uci.ics.cs221.index.inverted.WordBlock;

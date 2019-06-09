@@ -4,6 +4,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import edu.uci.ics.cs221.analysis.Analyzer;
+import edu.uci.ics.cs221.analysis.ComposableAnalyzer;
+import edu.uci.ics.cs221.analysis.NaiveAnalyzer;
 import edu.uci.ics.cs221.index.positional.Compressor;
 import edu.uci.ics.cs221.index.positional.DeltaVarLenCompressor;
 import edu.uci.ics.cs221.index.positional.NaiveCompressor;
@@ -75,6 +77,8 @@ public class InvertedIndexManager {
     // Support
     private boolean supportPosition = false;
     private Compressor naiveCompressor = new NaiveCompressor();
+    // Counting
+    private Map<Integer, Map<String, Integer>> tokenCounting = new HashMap<>();
 
 
     private InvertedIndexManager(String indexFolder, Analyzer analyzer) {
@@ -163,7 +167,11 @@ public class InvertedIndexManager {
 
         // Use Analyzer to extract words from a document
         List<String> words = this.analyzer.analyze(document.getText());
-        for (String word : words) {
+        // Count words
+        this.countTokens(newDocId, words);
+        // Transfer to set
+        Set<String> wordsSet = new HashSet<>(words);
+        for (String word : wordsSet) {
             // Get documents that contain that word and store its ID
             List<Integer> documentIds = this.invertedLists.get(word);
             if (documentIds == null) {
@@ -180,6 +188,24 @@ public class InvertedIndexManager {
         if (newDocId + 1 >= DEFAULT_FLUSH_THRESHOLD) {
             this.flush();
         }
+    }
+
+    /**
+     * Count tokens for a given document
+     */
+    private void countTokens(Integer docId, List<String> tokens) {
+        Map<String, Integer> counting = new HashMap<>();
+
+        for (String token : tokens) {
+            if (!counting.containsKey(token)) {
+                counting.put(token, 1);
+            }
+            else {
+                counting.put(token, counting.get(token) + 1);
+            }
+        }
+
+        this.tokenCounting.put(docId, counting);
     }
 
     private boolean isFlushValid() {
@@ -237,7 +263,6 @@ public class InvertedIndexManager {
                     documentIds, wordBlock,
                     meta);
         }
-
         // Write remaining content from buffer
         this.flushWordsBuffer.putInt(0, this.flushWordsBuffer.position());
         wordsChannel.writePage(meta.wordsPageNum, this.flushWordsBuffer);
@@ -257,6 +282,7 @@ public class InvertedIndexManager {
         // Reset inverted lists
         this.invertedLists.clear();
         this.documents.clear();
+        this.tokenCounting.clear();
 
         // Close document store
         this.documentStore.close();
@@ -301,6 +327,7 @@ public class InvertedIndexManager {
     public void mergeAllSegments() {
         // New segment page num
         WriteMeta meta = new WriteMeta();
+
 
         // Merge all segments
         for (int leftIndex = 0, rightIndex = 1; rightIndex < this.getNumSegments(); leftIndex += 2, rightIndex += 2) {
@@ -600,12 +627,12 @@ public class InvertedIndexManager {
         List<Integer> sizeList = new ArrayList<>();
         // Flush all position lists
         for (Integer id : invertedList) {
-            // Get position list
-            List<Integer> positionList = Utils.getPositions(documentStore.getDocument(id), wordBlock.word, this.analyzer);
-            // Add size
-            sizeList.add(positionList.size());
-
             if (posChannel != null) {
+                // Get position list
+                List<Integer> positionList = Utils.getPositions(documentStore.getDocument(id), wordBlock.word, this.analyzer);
+                // Add size
+                sizeList.add(positionList.size());
+
                 // Encode position list
                 byte[] encodedPositionList = this.compressor.encode(positionList);
                 // Mark down global offset
@@ -620,6 +647,10 @@ public class InvertedIndexManager {
                     }
                     posBuffer.put(encodedPosition);
                 }
+            }
+            else {
+                // Just for counting size of position list
+                sizeList.add(this.tokenCounting.get(id).get(wordBlock.word));
             }
         }
         if (posChannel != null) {
@@ -1385,7 +1416,6 @@ public class InvertedIndexManager {
                         ListBlock listBlock = this.getListBlockFromSegment(listPage, wordBlock);
 
                         // For each docID, accumulate the product
-                        System.out.println(listBlock.invertedList.size() + " : " + listBlock.sizeList.size());
                         for (int index = 0; index < listBlock.invertedList.size(); index++) {
                             int docId = listBlock.invertedList.get(index);
                             int positionListSize = listBlock.sizeList.get(index);

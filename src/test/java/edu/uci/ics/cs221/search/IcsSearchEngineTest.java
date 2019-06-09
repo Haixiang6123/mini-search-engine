@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
  */
 public class IcsSearchEngineTest {
 
-//    @ClassRule
-//    public static Timeout classTimeout = Timeout.seconds(900);
+    @ClassRule
+    public static Timeout classTimeout = Timeout.seconds(900);
 
     static Path webPagesPath = Paths.get("./webpages");
     static Path indexPath = Paths.get("./index/IcsSearchEngineTest");
