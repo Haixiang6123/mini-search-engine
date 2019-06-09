@@ -208,9 +208,7 @@ public class IcsSearchEngine {
             else { return 0; }
         });
         // Get top k items
-        topKScores.subList(0, topK);
-
-        return topKScores.iterator();
+        return topKScores.subList(0, topK).iterator();
     }
 
 }
