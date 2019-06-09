@@ -220,18 +220,13 @@ public class IcsSearchEngine {
             topKScores.add(new Pair<>(document, tfIdfScore + pageRankWeight * pageRankScore));
         }
 
-        System.out.println("do: " + topK + " : " + topKScores.size());
         // Sort scores
         topKScores.sort((o1, o2) -> {
             if (o1.getRight() > o2.getRight()) { return -1; }
             else if (o1.getRight() < o2.getRight()) { return 1; }
             else { return 0; }
         });
-        System.out.println("do sorted: " + topK + " : " + topKScores.size());
         List<Pair<Document, Double>> list = topKScores.subList(0, Math.min(topK,topKScores.size()));
-        System.out.println("do subed: " + topK + " : " + list.size());
-        System.out.println("list");
-        System.out.println(Utils.stringifyList(list));
         // Get top k items
         return list.iterator();
     }

@@ -1304,7 +1304,6 @@ public class InvertedIndexManager {
         // Pass 1: get each word's document frequency; and overall document num
         Map<String, Integer> documentFrequency = new HashMap<>();    // Map(word, documentAmount)
         int globalDocNum = this.tfidfPass1(uniqueTerms,documentFrequency);
-        System.out.println("global doc num " + globalDocNum);
 
         // Part 1.5: Calculate query's tf-idf vector
         Map<String, Double> queryVector = new HashMap<>();    // Map < term, tfidf >
@@ -1322,9 +1321,6 @@ public class InvertedIndexManager {
 
         // End 4: Read Documents from stores
         List<Pair<Document, Double>> result = this.retrieveScoredDocuments(topDocs);
-
-        System.out.println("tfidf");
-        System.out.println(Utils.stringifyList(result));
 
         return result.iterator();
     }
