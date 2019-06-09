@@ -228,7 +228,7 @@ public class IcsSearchEngine {
             else { return 0; }
         });
         System.out.println("do sorted: " + topK + " : " + topKScores.size());
-        List<Pair<Document, Double>> list = topKScores.subList(0, topK);
+        List<Pair<Document, Double>> list = topKScores.subList(0, Math.min(topK,topKScores.size()));
         System.out.println("do subed: " + topK + " : " + list.size());
         System.out.println("list");
         System.out.println(Utils.stringifyList(list));

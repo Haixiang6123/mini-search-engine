@@ -1411,7 +1411,7 @@ public class InvertedIndexManager {
                 Map<DocID, Double> vectorLengthAccumulator = new HashMap<>();
                 Map<DocID, Double> scores = new HashMap<>();
 
-                // Cumulate doc info
+                // Accumulate doc info
                 List<WordBlock> wordBlockList = this.getWordBlocksFromSegment(wordPage, segNum);
                 for (WordBlock wordBlock : wordBlockList) {
                     if (uniqueTerms.contains(wordBlock.word)) {
