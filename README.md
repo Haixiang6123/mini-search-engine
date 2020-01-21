@@ -19,6 +19,10 @@ $ mvn clean install -DskipTests
 * [x] Punctuation Tokenizer
 * [x] Word Break Tokenizer (Support English, Japanese, Chinese)
 * [x] Steammer (Using Lucene Lib)
+* [x] Apply LSM method to do merge and flush
+* [x] Compressor based on delta encoding and variable-length encoding
+* [x] Page rank + TF-IDF rank
+* [x] Phrase search
 
 ## Run tests
 
